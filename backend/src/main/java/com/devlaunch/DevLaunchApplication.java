@@ -2,6 +2,7 @@ package com.devlaunch;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
  * DevLaunch Backend – AI-Powered Developer Career Hub.
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * </p>
  */
 @SpringBootApplication
+@EnableJpaAuditing
 public class DevLaunchApplication {
 
     public static void main(String[] args) {
