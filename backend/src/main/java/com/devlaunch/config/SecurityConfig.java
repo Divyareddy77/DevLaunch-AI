@@ -1,5 +1,6 @@
 package com.devlaunch.config;
 
+import com.devlaunch.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -10,13 +11,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Central security configuration for the DevLaunch API.
  * <p>
  * Configures HTTP security, password encoding, and authentication management.
- * JWT filter integration is prepared via a placeholder comment and will be
- * wired in once the JwtAuthenticationFilter is fully implemented.
+ * Registers the {@link JwtAuthenticationFilter} to intercept requests and
+ * validate JWT tokens before Spring Security processes the authentication.
  * </p>
  *
  * @author DevLaunch
@@ -31,16 +33,26 @@ public class SecurityConfig {
             "/v3/api-docs/**"
     };
 
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /**
+     * Constructs the security configuration with the required dependencies.
+     *
+     * @param jwtAuthenticationFilter the JWT authentication filter to register
+     */
+    public SecurityConfig(final JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
     /**
      * Configures the HTTP security filter chain.
      * <p>
      * CSRF is disabled for stateless REST API access. Public endpoints
      * (authentication, Swagger) permit all requests; all other endpoints
-     * require authentication. Session management is stateless.
-     * </p>
-     * <p>
-     * TODO: Insert JwtAuthenticationFilter before UsernamePasswordAuthenticationFilter
-     * once the JWT utility and token parsing logic are implemented.
+     * require authentication. Session management is stateless. The
+     * {@link JwtAuthenticationFilter} is registered before
+     * {@link UsernamePasswordAuthenticationFilter} to extract and validate
+     * JWT tokens on every request.
      * </p>
      *
      * @param http the {@link HttpSecurity} to configure
@@ -48,7 +60,7 @@ public class SecurityConfig {
      * @throws Exception if an error occurs during configuration
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(final HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
@@ -56,10 +68,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated()
-                );
-
-        // TODO: Add JwtAuthenticationFilter to the filter chain
-        // http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -84,7 +94,7 @@ public class SecurityConfig {
      */
     @Bean
     public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authenticationConfiguration) throws Exception {
+            final AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 

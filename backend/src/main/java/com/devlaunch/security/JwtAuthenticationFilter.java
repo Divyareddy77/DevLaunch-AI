@@ -5,37 +5,57 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 /**
- * Placeholder JWT authentication filter that extends {@link OncePerRequestFilter}.
+ * JWT authentication filter that intercepts incoming HTTP requests,
+ * extracts and validates JWT tokens, and populates the Spring Security
+ * {@link SecurityContextHolder} with the authenticated principal.
  * <p>
- * Currently passes all requests through without authentication logic.
- * This filter will be wired into the {@code SecurityConfig} filter chain
- * once JWT token parsing and validation are implemented.
- * </p>
- *
- * <p>TODO:
- * <ul>
- *   <li>Inject JwtTokenProvider (or equivalent JWT utility) via constructor injection</li>
- *   <li>Extract the Authorization header from the request</li>
- *   <li>Parse and validate the JWT token</li>
- *   <li>Load user details via CustomUserDetailsService</li>
- *   <li>Set the SecurityContext with the authenticated principal</li>
- * </ul>
+ * Extends {@link OncePerRequestFilter} to guarantee a single execution
+ * per request dispatch. Delegates token parsing and validation to
+ * {@link JwtService} and user loading to {@link CustomUserDetailsService}.
  * </p>
  *
  * @author DevLaunch
  */
+@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final int BEARER_PREFIX_LENGTH = BEARER_PREFIX.length();
+
+    private final JwtService jwtService;
+    private final CustomUserDetailsService customUserDetailsService;
+
+    /**
+     * Constructs the filter with the required dependencies.
+     *
+     * @param jwtService               the service for JWT token operations
+     * @param customUserDetailsService the service for loading user details
+     */
+    public JwtAuthenticationFilter(final JwtService jwtService,
+                                   final CustomUserDetailsService customUserDetailsService) {
+        this.jwtService = jwtService;
+        this.customUserDetailsService = customUserDetailsService;
+    }
 
     /**
      * Filters each incoming HTTP request.
      * <p>
-     * TODO: Implement JWT token extraction, validation, and
-     * SecurityContext population here.
+     * Extracts the JWT token from the Authorization header, validates it,
+     * loads the corresponding user details, and sets the authentication
+     * in the security context. If the token is missing, invalid, or the
+     * user cannot be found, the filter chain continues without setting
+     * an authentication — allowing Spring Security to handle access denial.
      * </p>
      *
      * @param request     the incoming HTTP request
@@ -46,20 +66,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) throws ServletException, IOException {
+            @NonNull final HttpServletRequest request,
+            @NonNull final HttpServletResponse response,
+            @NonNull final FilterChain filterChain) throws ServletException, IOException {
 
-        // TODO: Extract token from Authorization header
-        // String authHeader = request.getHeader("Authorization");
+        final String authHeader = request.getHeader(AUTHORIZATION_HEADER);
 
-        // TODO: Validate token using JwtTokenProvider
+        // Skip authentication if the header is missing or does not use Bearer scheme
+        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-        // TODO: Load user details and set SecurityContext
-        // CustomUserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
-        // UsernamePasswordAuthenticationToken authentication =
-        //         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-        // SecurityContextHolder.getContext().setAuthentication(authentication);
+        // Extract the JWT token from the Bearer header
+        final String jwt = authHeader.substring(BEARER_PREFIX_LENGTH);
+
+        // Extract the username (email) from the token
+        final String username = jwtService.extractUsername(jwt);
+
+        // Proceed only if we have a username and no authentication is already set
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            final UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+
+            if (jwtService.isTokenValid(jwt, userDetails)) {
+                final UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+
+                authToken.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request)
+                );
+
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
 
         filterChain.doFilter(request, response);
     }
