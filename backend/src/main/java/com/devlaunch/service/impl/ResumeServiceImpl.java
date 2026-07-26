@@ -3,11 +3,14 @@ package com.devlaunch.service.impl;
 import com.devlaunch.dto.request.CreateResumeRequest;
 import com.devlaunch.dto.request.UpdateResumeRequest;
 import com.devlaunch.dto.response.ResumeResponse;
+import com.devlaunch.dto.response.ResumeTemplateResponse;
 import com.devlaunch.entity.Resume;
+import com.devlaunch.entity.ResumeTemplate;
 import com.devlaunch.entity.User;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.ResumeMapper;
 import com.devlaunch.repository.ResumeRepository;
+import com.devlaunch.repository.ResumeTemplateRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.ResumeService;
 import org.springframework.security.core.Authentication;
@@ -19,15 +22,15 @@ import java.util.List;
 
 /**
  * Implementation of {@link ResumeService} providing resume creation,
- * retrieval, update, and deletion operations for the currently
- * authenticated user.
+ * retrieval, update, deletion, and template assignment operations
+ * for the currently authenticated user.
  * <p>
  * Uses the Spring Security {@link SecurityContextHolder} to obtain
  * the authenticated user's email, then delegates persistence and
  * mapping to {@link ResumeRepository} and {@link ResumeMapper}
- * respectively. A user may create multiple resumes. Update and
- * delete operations verify that the resume belongs to the
- * authenticated user.
+ * respectively. A user may create multiple resumes. Update,
+ * delete, and template assignment operations verify that the resume
+ * belongs to the authenticated user.
  * </p>
  *
  * @author DevLaunch
@@ -36,20 +39,24 @@ import java.util.List;
 public class ResumeServiceImpl implements ResumeService {
 
     private final ResumeRepository resumeRepository;
+    private final ResumeTemplateRepository resumeTemplateRepository;
     private final UserRepository userRepository;
     private final ResumeMapper resumeMapper;
 
     /**
      * Constructs the resume service with the required dependencies.
      *
-     * @param resumeRepository repository for resume data access
-     * @param userRepository   repository for user data access
-     * @param resumeMapper     mapper for DTO-entity conversions
+     * @param resumeRepository         repository for resume data access
+     * @param resumeTemplateRepository repository for resume template data access
+     * @param userRepository           repository for user data access
+     * @param resumeMapper             mapper for DTO-entity conversions
      */
     public ResumeServiceImpl(final ResumeRepository resumeRepository,
+                             final ResumeTemplateRepository resumeTemplateRepository,
                              final UserRepository userRepository,
                              final ResumeMapper resumeMapper) {
         this.resumeRepository = resumeRepository;
+        this.resumeTemplateRepository = resumeTemplateRepository;
         this.userRepository = userRepository;
         this.resumeMapper = resumeMapper;
     }
@@ -148,6 +155,47 @@ public class ResumeServiceImpl implements ResumeService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User with email " + email + " not found"));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public ResumeResponse assignTemplate(final Long resumeId, final Long templateId) {
+        final Resume resume = getResumeOwnedByAuthenticatedUser(resumeId);
+
+        // Fetch and verify the template exists
+        final ResumeTemplate template = resumeTemplateRepository.findById(templateId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Resume template with id " + templateId + " not found"));
+
+        // Assign the template to the resume
+        resume.setTemplate(template);
+
+        // Persist the updated resume
+        final Resume savedResume = resumeRepository.save(resume);
+
+        // Return the updated resume data
+        return resumeMapper.toResumeResponse(savedResume);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResumeTemplateResponse getResumeTemplate(final Long resumeId) {
+        final Resume resume = getResumeOwnedByAuthenticatedUser(resumeId);
+
+        // Retrieve the template assigned to the resume, if any
+        final ResumeTemplate template = resume.getTemplate();
+
+        if (template == null) {
+            return null;
+        }
+
+        return resumeMapper.toResumeTemplateResponse(template);
     }
 
     /**

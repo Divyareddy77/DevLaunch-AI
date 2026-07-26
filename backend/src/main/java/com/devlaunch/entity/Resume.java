@@ -75,4 +75,17 @@ public class Resume extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    /**
+     * The template applied to this resume.
+     * <p>
+     * A resume may optionally be assigned a predefined template that
+     * controls its visual style. Many resumes may share the same
+     * template, and changing the template does not affect the resume's
+     * content.
+     * </p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "template_id")
+    private ResumeTemplate template;
+
 }

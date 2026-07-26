@@ -3,6 +3,7 @@ package com.devlaunch.controller;
 import com.devlaunch.dto.request.CreateResumeRequest;
 import com.devlaunch.dto.request.UpdateResumeRequest;
 import com.devlaunch.dto.response.ResumeResponse;
+import com.devlaunch.dto.response.ResumeTemplateResponse;
 import com.devlaunch.service.interfaces.ResumeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +24,10 @@ import java.util.List;
  * REST controller for resume management operations.
  * <p>
  * Exposes endpoints for creating, retrieving, updating, and deleting
- * the currently authenticated user's resumes. All endpoints require a
- * valid JWT access token and operate exclusively on the authenticated
- * user's own resume data. A user may create multiple resumes.
+ * the currently authenticated user's resumes, as well as assigning
+ * and retrieving resume templates. All endpoints require a valid JWT
+ * access token and operate exclusively on the authenticated user's own
+ * resume data. A user may create multiple resumes.
  * </p>
  *
  * @author DevLaunch
@@ -126,6 +128,45 @@ public class ResumeController {
     public ResponseEntity<String> deleteResume(@PathVariable final Long id) {
         resumeService.deleteResume(id);
         return ResponseEntity.ok("Resume deleted successfully.");
+    }
+
+    /**
+     * Assigns a predefined template to the specified resume.
+     * <p>
+     * Delegates the assignment to {@link ResumeService#assignTemplate(Long, Long)}.
+     * The resume must belong to the authenticated user, and the template
+     * must exist in the system.
+     * </p>
+     *
+     * @param resumeId   the ID of the resume to assign the template to
+     * @param templateId the ID of the template to assign
+     * @return a {@link ResponseEntity} containing the updated resume data
+     *         with HTTP status 200 (OK)
+     */
+    @PutMapping("/{resumeId}/template/{templateId}")
+    public ResponseEntity<ResumeResponse> assignTemplate(
+            @PathVariable final Long resumeId,
+            @PathVariable final Long templateId) {
+        ResumeResponse response = resumeService.assignTemplate(resumeId, templateId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves the template currently assigned to the specified resume.
+     * <p>
+     * Delegates to {@link ResumeService#getResumeTemplate(Long)} to fetch
+     * the assigned template. The resume must belong to the authenticated user.
+     * </p>
+     *
+     * @param resumeId the ID of the resume whose template to retrieve
+     * @return a {@link ResponseEntity} containing the template data,
+     *         or HTTP status 200 with a null body if no template is assigned
+     */
+    @GetMapping("/{resumeId}/template")
+    public ResponseEntity<ResumeTemplateResponse> getResumeTemplate(
+            @PathVariable final Long resumeId) {
+        ResumeTemplateResponse response = resumeService.getResumeTemplate(resumeId);
+        return ResponseEntity.ok(response);
     }
 
 }

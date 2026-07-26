@@ -10,7 +10,7 @@ import lombok.Setter;
  * Response DTO for resume information.
  * <p>
  * Exposes resume data including the user's professional headline,
- * summary, and links to their online profiles.
+ * summary, links to their online profiles, and the selected template.
  * </p>
  *
  * @author DevLaunch
@@ -33,5 +33,7 @@ public class ResumeResponse {
     private String githubUrl;
 
     private String portfolioUrl;
+
+    private ResumeTemplateResponse template;
 
 }

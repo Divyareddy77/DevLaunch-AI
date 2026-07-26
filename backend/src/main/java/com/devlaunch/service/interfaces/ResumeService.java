@@ -3,6 +3,8 @@ package com.devlaunch.service.interfaces;
 import com.devlaunch.dto.request.CreateResumeRequest;
 import com.devlaunch.dto.request.UpdateResumeRequest;
 import com.devlaunch.dto.response.ResumeResponse;
+import com.devlaunch.dto.response.ResumeTemplateResponse;
+import com.devlaunch.exception.ResourceNotFoundException;
 
 import java.util.List;
 
@@ -25,8 +27,7 @@ public interface ResumeService {
      *
      * @param request the create-resume request containing professional details
      * @return the newly created resume data
-     * @throws com.devlaunch.exception.ResourceNotFoundException if the authenticated
-     *                                                            user is not found
+     * @throws ResourceNotFoundException if the authenticated user is not found
      */
     ResumeResponse createResume(CreateResumeRequest request);
 
@@ -43,8 +44,8 @@ public interface ResumeService {
      *
      * @param id the resume ID
      * @return the resume data
-     * @throws com.devlaunch.exception.ResourceNotFoundException if the resume is not found
-     *                                                            or does not belong to the user
+     * @throws ResourceNotFoundException if the resume is not found
+     *                                    or does not belong to the user
      */
     ResumeResponse getResumeById(Long id);
 
@@ -55,8 +56,8 @@ public interface ResumeService {
      * @param id      the resume ID to update
      * @param request the update request containing the new professional details
      * @return the updated resume data
-     * @throws com.devlaunch.exception.ResourceNotFoundException if the resume is not found
-     *                                                            or does not belong to the user
+     * @throws ResourceNotFoundException if the resume is not found
+     *                                    or does not belong to the user
      */
     ResumeResponse updateResume(Long id, UpdateResumeRequest request);
 
@@ -65,9 +66,40 @@ public interface ResumeService {
      * currently authenticated user.
      *
      * @param id the resume ID to delete
-     * @throws com.devlaunch.exception.ResourceNotFoundException if the resume is not found
-     *                                                            or does not belong to the user
+     * @throws ResourceNotFoundException if the resume is not found
+     *                                    or does not belong to the user
      */
     void deleteResume(Long id);
+
+    /**
+     * Assigns a predefined template to the specified resume.
+     * <p>
+     * The resume must belong to the currently authenticated user.
+     * Both the resume and the template must exist in the system.
+     * </p>
+     *
+     * @param resumeId   the ID of the resume to assign the template to
+     * @param templateId the ID of the template to assign
+     * @return the updated resume data with the assigned template
+     * @throws ResourceNotFoundException if the resume, template, or authenticated
+     *                                   user is not found, or if the resume does
+     *                                   not belong to the user
+     */
+    ResumeResponse assignTemplate(Long resumeId, Long templateId);
+
+    /**
+     * Retrieves the template currently assigned to the specified resume.
+     * <p>
+     * The resume must belong to the currently authenticated user.
+     * </p>
+     *
+     * @param resumeId the ID of the resume whose template to retrieve
+     * @return the template data assigned to the resume, or {@code null}
+     *         if no template is assigned
+     * @throws ResourceNotFoundException if the resume or authenticated user
+     *                                   is not found, or if the resume does
+     *                                   not belong to the user
+     */
+    ResumeTemplateResponse getResumeTemplate(Long resumeId);
 
 }
