@@ -84,6 +84,27 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles {@link IllegalArgumentException} thrown when a service method
+     * receives an invalid argument, such as an incorrect current password
+     * during a password change operation.
+     *
+     * @param ex      the exception instance
+     * @param request the current HTTP request
+     * @return a 400 Bad Request response with error details
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex,
+            HttpServletRequest request) {
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage(),
+                request
+        );
+    }
+
+    /**
      * Handles {@link MethodArgumentNotValidException} thrown when
      * {@code @Valid} validation on a request body fails.
      * <p>

@@ -1,5 +1,6 @@
 package com.devlaunch.controller;
 
+import com.devlaunch.dto.request.ChangePasswordRequest;
 import com.devlaunch.dto.request.UpdateUserRequest;
 import com.devlaunch.dto.response.UserResponse;
 import com.devlaunch.service.interfaces.UserService;
@@ -16,9 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
  * REST controller for user profile management operations.
  * <p>
  * Exposes endpoints for retrieving and updating the currently
- * authenticated user's profile. All endpoints require a valid
- * JWT access token and operate exclusively on the authenticated
- * user's own data.
+ * authenticated user's profile, as well as changing their password.
+ * All endpoints require a valid JWT access token and operate
+ * exclusively on the authenticated user's own data.
  * </p>
  *
  * @author DevLaunch
@@ -65,6 +66,26 @@ public class UserController {
             @Valid @RequestBody final UpdateUserRequest request) {
         UserResponse response = userService.updateCurrentUser(request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Changes the password of the currently authenticated user.
+     * <p>
+     * Accepts the current password for verification and the new password
+     * to be set. Delegates the operation to {@link UserService#changePassword(ChangePasswordRequest)}.
+     * Returns a simple success message upon completion.
+     * </p>
+     *
+     * @param request the change password request containing the current
+     *                and new passwords
+     * @return a {@link ResponseEntity} containing a success message
+     *         with HTTP status 200 (OK)
+     */
+    @PutMapping("/change-password")
+    public ResponseEntity<String> changePassword(
+            @Valid @RequestBody final ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ResponseEntity.ok("Password updated successfully.");
     }
 
 }
