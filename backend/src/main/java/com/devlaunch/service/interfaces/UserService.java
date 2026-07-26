@@ -1,5 +1,6 @@
 package com.devlaunch.service.interfaces;
 
+import com.devlaunch.dto.request.ChangePasswordRequest;
 import com.devlaunch.dto.request.UpdateUserRequest;
 import com.devlaunch.dto.response.UserResponse;
 import com.devlaunch.exception.ResourceNotFoundException;
@@ -46,5 +47,21 @@ public interface UserService {
      *                                   is not found in the database
      */
     UserResponse updateCurrentUser(UpdateUserRequest request);
+
+    /**
+     * Changes the password of the currently authenticated user.
+     * <p>
+     * Verifies the supplied current password against the stored hash.
+     * If the passwords match, the new password is encoded and persisted.
+     * If they do not match, an {@link IllegalArgumentException} is thrown.
+     * </p>
+     *
+     * @param request the change password request containing the current
+     *                and new passwords
+     * @throws ResourceNotFoundException if the authenticated user
+     *                                   is not found in the database
+     * @throws IllegalArgumentException  if the current password is incorrect
+     */
+    void changePassword(ChangePasswordRequest request);
 
 }
