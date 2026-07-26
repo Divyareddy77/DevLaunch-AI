@@ -39,3 +39,7 @@ Thumbs.db
 # Freebuff
 # =========================
 .freebuff/
+# Backend log files
+backend/logs/
+*.log
+*.gz
