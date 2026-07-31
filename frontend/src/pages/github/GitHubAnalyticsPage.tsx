@@ -11,7 +11,6 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import axios from 'axios';
 import { Search, Github, BookOpen } from 'lucide-react';
 import { githubService } from '../../services/github.service';
 import { GitHubProfileCard } from '../../components/github/GitHubProfileCard';
@@ -23,6 +22,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { getErrorMessage } from '../../utils/error';
 import { MESSAGES } from '../../constants/messages';
 import type {
   GitHubProfileResponse,
@@ -32,17 +32,6 @@ import type {
 
 /** Fallback message when an error carries no usable backend message. */
 const DEFAULT_ERROR_MESSAGE = MESSAGES.LOAD_ERROR('GitHub data');
-
-/**
- * Extracts a human-readable message from an Axios or generic error,
- * preferring the backend's ErrorResponse.message when available.
- */
-function getErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    return (err.response?.data as { message?: string } | undefined)?.message ?? DEFAULT_ERROR_MESSAGE;
-  }
-  return err instanceof Error ? err.message : DEFAULT_ERROR_MESSAGE;
-}
 
 export const GitHubAnalyticsPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
@@ -76,7 +65,7 @@ export const GitHubAnalyticsPage: React.FC = () => {
       setProfile(null);
       setRepositories([]);
       setLanguages([]);
-      setError(getErrorMessage(err));
+      setError(getErrorMessage(err, DEFAULT_ERROR_MESSAGE));
     } finally {
       setIsLoading(false);
     }

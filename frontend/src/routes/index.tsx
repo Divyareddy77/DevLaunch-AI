@@ -27,6 +27,8 @@ import { StudyPlannerPage } from '../pages/study-planner/StudyPlannerPage';
 import { CreateStudyPlannerPage } from '../pages/study-planner/CreateStudyPlannerPage';
 import { EditStudyPlannerPage } from '../pages/study-planner/EditStudyPlannerPage';
 import { GitHubAnalyticsPage } from '../pages/github/GitHubAnalyticsPage';
+import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
+import { ProfilePage } from '../pages/profile/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const routes: RouteObject[] = [
@@ -120,8 +122,20 @@ export const routes: RouteObject[] = [
             element: <GitHubAnalyticsPage />,
           },
 
+          // ---- LeetCode Tracker ----
+          {
+            path: ROUTES.LEETCODE_TRACKER,
+            element: <LeetCodeTrackerPage />,
+          },
+
+          // ---- Profile ----
+          {
+            path: ROUTES.PROFILE,
+            element: <ProfilePage />,
+          },
+
           // Future module routes will be added here:
-          // LeetCode Tracker, Profile, AI, Admin
+          // AI, Admin
         ],
       },
     ],
