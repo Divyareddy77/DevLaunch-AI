@@ -105,18 +105,16 @@ export interface InterviewHistoryResponse {
   averageScore: number;
 }
 
-/** Request payload to submit a resume for AI-powered review. */
+/** Request payload to submit an existing resume for AI-powered review. */
 export interface ResumeReviewRequest {
-  /** The full text content of the resume to review. */
-  resumeContent: string;
+  /** The ID of the resume to review. */
+  resumeId: number;
   /** Optional target job role to tailor the review towards. */
   targetRole?: string;
 }
 
 /** A single suggestion returned from a resume review. */
 export interface ResumeReviewSuggestion {
-  /** Category of the suggestion (e.g. 'formatting', 'content', 'keywords'). */
-  category: string;
   /** The specific section of the resume this relates to. */
   section: string;
   /** The suggestion text. */
@@ -127,12 +125,20 @@ export interface ResumeReviewSuggestion {
 
 /** Response returned after an AI resume review. */
 export interface ResumeReviewResponse {
-  /** Overall score for the resume (0–100). */
-  overallScore: number;
-  /** Detailed suggestions for improvement. */
-  suggestions: ResumeReviewSuggestion[];
-  /** Identified missing keywords relevant to the target role. */
-  missingKeywords: string[];
+  /** The ID of the resume that was reviewed. */
+  resumeId: number;
+  /** The headline/title of the reviewed resume. */
+  resumeTitle: string;
+  /** Overall resume quality score (0–100). */
+  resumeScore: number;
+  /** Applicant Tracking System compatibility score (0–100). */
+  atsScore: number;
   /** Overall strengths of the resume. */
   strengths: string[];
+  /** Areas where the resume is weak or underdeveloped. */
+  weaknesses: string[];
+  /** In-demand skills missing from the resume. */
+  missingSkills: string[];
+  /** Detailed suggestions for improvement. */
+  suggestions: ResumeReviewSuggestion[];
 }

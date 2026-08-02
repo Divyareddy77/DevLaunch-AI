@@ -29,6 +29,7 @@ import { EditStudyPlannerPage } from '../pages/study-planner/EditStudyPlannerPag
 import { GitHubAnalyticsPage } from '../pages/github/GitHubAnalyticsPage';
 import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
+import { ResumeReviewPage } from '../pages/ai/ResumeReviewPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const routes: RouteObject[] = [
@@ -134,8 +135,14 @@ export const routes: RouteObject[] = [
             element: <ProfilePage />,
           },
 
+          // ---- AI ----
+          {
+            path: ROUTES.RESUME_REVIEW,
+            element: <ResumeReviewPage />,
+          },
+
           // Future module routes will be added here:
-          // AI, Admin
+          // Admin
         ],
       },
     ],

@@ -33,6 +33,9 @@ export const MESSAGES = {
   LOAD_ERROR: (resource: string) => `Failed to load ${resource}. Please try again.`,
   SAVE_ERROR: (resource: string) => `Failed to save ${resource}. Please try again.`,
 
+  // ---- AI ----
+  RESUME_REVIEW_ERROR: 'Failed to review the resume. Please try again.',
+
   // ---- Empty states ----
   NO_RESUMES: 'You haven\'t created any resumes yet. Create your first resume to get started.',
   NO_JOB_APPLICATIONS: 'No job applications tracked yet. Start by adding your first application.',

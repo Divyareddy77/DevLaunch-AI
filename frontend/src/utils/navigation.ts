@@ -20,6 +20,7 @@ import {
   Github,
   Code2,
   Bot,
+  FileSearch,
   User,
   type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'GitHub Analytics', path: ROUTES.GITHUB_ANALYTICS, icon: Github },
   { label: 'LeetCode Tracker', path: ROUTES.LEETCODE_TRACKER, icon: Code2 },
   { label: 'AI Mock Interview', path: ROUTES.MOCK_INTERVIEW, icon: Bot },
+  { label: 'AI Resume Review', path: ROUTES.RESUME_REVIEW, icon: FileSearch },
   { label: 'Profile', path: ROUTES.PROFILE, icon: User },
 ];
 
