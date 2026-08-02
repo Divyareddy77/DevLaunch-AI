@@ -34,6 +34,18 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
 
+# AI Provider Configuration
+# Optional LLM provider (e.g. OpenAI) used by the AI module. When no API key
+# is configured, the application falls back to deterministic sample analysis
+# so all AI features remain fully functional.
+devlaunch:
+  ai:
+    provider-api-key: ${AI_PROVIDER_API_KEY:}
+    model: ${AI_MODEL:gpt-4o-mini}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:10}
+    read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
+
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET:ThisIsADevelopmentSecretKeyThatIsAtLeast32CharactersLong}
