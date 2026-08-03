@@ -11,16 +11,16 @@
 /** Categories available for mock interview sessions. */
 export enum InterviewCategory {
   HR = 'HR',
-  JAVA = 'Java',
-  SPRING_BOOT = 'Spring Boot',
+  JAVA = 'JAVA',
+  SPRING_BOOT = 'SPRING_BOOT',
   SQL = 'SQL',
-  REACT = 'React',
+  REACT = 'REACT',
 }
 
 /** Request payload to start a new mock interview session. */
 export interface StartInterviewRequest {
   /** The category of interview to simulate. */
-  category: InterviewCategory;
+  interviewType: InterviewCategory;
 }
 
 /** A single question generated for a mock interview. */
@@ -38,17 +38,29 @@ export interface StartInterviewResponse {
   /** Unique session identifier for the interview. */
   sessionId: string;
   /** The category of this interview session. */
-  category: InterviewCategory;
+  interviewType: InterviewCategory;
   /** Array of questions generated for this session. */
   questions: InterviewQuestion[];
+}
+
+/** A single question/answer pair submitted for evaluation. */
+export interface InterviewAnswer {
+  /** The ID of the question within the session. */
+  questionId: string;
+  /** The question text the user was asked. */
+  question: string;
+  /** The user's answer to the question. */
+  answer: string;
 }
 
 /** Request payload to submit answers for an interview session. */
 export interface SubmitInterviewRequest {
   /** The session ID returned from StartInterview. */
   sessionId: string;
-  /** Map of question IDs to the user's answer text. */
-  answers: Record<string, string>;
+  /** The category of interview that was practised. */
+  interviewType: InterviewCategory;
+  /** The question/answer pairs to evaluate. */
+  answers: InterviewAnswer[];
 }
 
 /** Feedback for a single interview answer. */
@@ -71,6 +83,8 @@ export interface AnswerFeedback {
 export interface SubmitInterviewResponse {
   /** The session ID this feedback belongs to. */
   sessionId: string;
+  /** The category of the interview that was analysed. */
+  interviewType: InterviewCategory;
   /** Overall score for the entire interview (0–100). */
   overallScore: number;
   /** Per-question feedback breakdown. */
@@ -86,7 +100,7 @@ export interface InterviewHistoryItem {
   /** Session identifier. */
   sessionId: string;
   /** The category of interview. */
-  category: InterviewCategory;
+  interviewType: InterviewCategory;
   /** Date the interview was completed. */
   completedAt: string;
   /** Overall score achieved. */

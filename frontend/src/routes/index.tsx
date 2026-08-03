@@ -30,6 +30,7 @@ import { GitHubAnalyticsPage } from '../pages/github/GitHubAnalyticsPage';
 import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ResumeReviewPage } from '../pages/ai/ResumeReviewPage';
+import { MockInterviewPage } from '../pages/ai/MockInterviewPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const routes: RouteObject[] = [
@@ -139,6 +140,10 @@ export const routes: RouteObject[] = [
           {
             path: ROUTES.RESUME_REVIEW,
             element: <ResumeReviewPage />,
+          },
+          {
+            path: ROUTES.MOCK_INTERVIEW,
+            element: <MockInterviewPage />,
           },
 
           // Future module routes will be added here:

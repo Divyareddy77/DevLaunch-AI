@@ -79,17 +79,16 @@ export const LEETCODE = {
 /**
  * AI module endpoint constants.
  *
- * These endpoints are prepared for future implementation. They
- * correspond to the Mock Interview and Resume Review features
- * described in the documentation.
+ * These endpoints back the Mock Interview and Resume Review features
+ * exposed by the backend AiController under the /api/ai prefix.
  */
 export const AI = {
   /** POST — Start a new mock interview session. */
-  START_INTERVIEW: '/api/interviews/start',
+  START_INTERVIEW: '/api/ai/mock-interview/questions',
   /** POST — Submit answers for an interview session and receive feedback. */
-  SUBMIT_INTERVIEW: '/api/interviews/submit',
+  SUBMIT_INTERVIEW: '/api/ai/mock-interview/feedback',
   /** GET — Retrieve the authenticated user's interview history. */
-  INTERVIEW_HISTORY: '/api/interviews/history',
+  INTERVIEW_HISTORY: '/api/ai/mock-interview/history',
   /** POST — Submit a resume for AI-powered review. */
   REVIEW_RESUME: '/api/ai/resume-review',
 } as const;

@@ -1,11 +1,17 @@
 package com.devlaunch.controller;
 
+import com.devlaunch.dto.request.MockInterviewStartRequest;
+import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
+import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
+import com.devlaunch.dto.response.MockInterviewHistoryResponse;
+import com.devlaunch.dto.response.MockInterviewStartResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.service.interfaces.AiService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,9 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * REST controller for AI-powered features.
  * <p>
- * Exposes endpoints for the AI module, currently supporting AI-powered
- * resume review. All endpoints require a valid JWT access token and
- * operate exclusively on the authenticated user's own data.
+ * Exposes endpoints for the AI module, supporting AI-powered resume
+ * review and AI-powered mock interviews. All endpoints require a valid
+ * JWT access token and operate exclusively on the authenticated user's
+ * own data.
  * </p>
  *
  * @author DevLaunch
@@ -47,6 +54,63 @@ public class AiController {
     public ResponseEntity<ResumeReviewResponse> reviewResume(
             @Valid @RequestBody final ResumeReviewRequest request) {
         ResumeReviewResponse response = aiService.reviewResume(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Starts a new mock interview session for the requested category.
+     * <p>
+     * Accepts the interview category, validates the input, and delegates
+     * to {@link AiService#startMockInterview(MockInterviewStartRequest)}.
+     * Returns the generated session identifier, category, and questions.
+     * </p>
+     *
+     * @param request the start request containing the interview category
+     * @return a {@link ResponseEntity} containing the generated questions
+     *         with HTTP status 200 (OK)
+     */
+    @PostMapping("/mock-interview/questions")
+    public ResponseEntity<MockInterviewStartResponse> startMockInterview(
+            @Valid @RequestBody final MockInterviewStartRequest request) {
+        MockInterviewStartResponse response = aiService.startMockInterview(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Submits the answers of a mock interview session for AI evaluation.
+     * <p>
+     * Accepts the session identifier, category, and question/answer pairs,
+     * validates the input, and delegates to
+     * {@link AiService#submitMockInterview(MockInterviewSubmitRequest)}.
+     * Returns the structured feedback with scores, strengths, and areas
+     * for improvement.
+     * </p>
+     *
+     * @param request the submit request containing the session and answers
+     * @return a {@link ResponseEntity} containing the interview feedback
+     *         with HTTP status 200 (OK)
+     */
+    @PostMapping("/mock-interview/feedback")
+    public ResponseEntity<MockInterviewFeedbackResponse> submitMockInterview(
+            @Valid @RequestBody final MockInterviewSubmitRequest request) {
+        MockInterviewFeedbackResponse response = aiService.submitMockInterview(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves the authenticated user's mock interview history.
+     * <p>
+     * Delegates to
+     * {@link AiService#getMockInterviewHistory()} and returns the
+     * completed interview sessions together with summary statistics.
+     * </p>
+     *
+     * @return a {@link ResponseEntity} containing the interview history
+     *         with HTTP status 200 (OK)
+     */
+    @GetMapping("/mock-interview/history")
+    public ResponseEntity<MockInterviewHistoryResponse> getMockInterviewHistory() {
+        MockInterviewHistoryResponse response = aiService.getMockInterviewHistory();
         return ResponseEntity.ok(response);
     }
 
