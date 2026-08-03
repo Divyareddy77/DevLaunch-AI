@@ -1,25 +1,41 @@
 package com.devlaunch.service.impl;
 
+import com.devlaunch.dto.request.MockInterviewAnswerRequest;
+import com.devlaunch.dto.request.MockInterviewStartRequest;
+import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
+import com.devlaunch.dto.response.MockInterviewFeedbackItemResponse;
+import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
+import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
+import com.devlaunch.dto.response.MockInterviewHistoryResponse;
+import com.devlaunch.dto.response.MockInterviewQuestionResponse;
+import com.devlaunch.dto.response.MockInterviewStartResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.dto.response.ResumeReviewSuggestion;
 import com.devlaunch.entity.Achievement;
 import com.devlaunch.entity.Certification;
 import com.devlaunch.entity.Education;
 import com.devlaunch.entity.Experience;
+import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.Project;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.InterviewType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
 import com.devlaunch.repository.EducationRepository;
 import com.devlaunch.repository.ExperienceRepository;
+import com.devlaunch.repository.InterviewSessionRepository;
 import com.devlaunch.repository.ProjectRepository;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.UserRepository;
+import com.devlaunch.service.ai.InterviewAnswer;
+import com.devlaunch.service.ai.InterviewQuestion;
+import com.devlaunch.service.ai.MockInterviewFeedback;
+import com.devlaunch.service.ai.MockInterviewProvider;
 import com.devlaunch.service.ai.ResumeContent;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
@@ -33,19 +49,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Implementation of {@link AiService} providing AI-powered resume review.
+ * Implementation of {@link AiService} providing AI-powered resume review
+ * and mock interviews.
  * <p>
- * Loads the resume owned by the authenticated user together with all of
- * its sections (education, experience, skills, projects, certifications,
- * and achievements), assembles a {@link ResumeContent} snapshot, and
- * delegates the analysis to a {@link ResumeReviewProvider}. The primary
- * LLM provider is preferred when configured; on any failure or when no
+ * For resume review, loads the resume owned by the authenticated user
+ * together with all of its sections, assembles a {@link ResumeContent}
+ * snapshot, and delegates the analysis to a {@link ResumeReviewProvider}.
+ * For mock interviews, delegates question generation and answer
+ * evaluation to a {@link MockInterviewProvider} and persists completed
+ * sessions to the user's interview history. In both cases the primary LLM
+ * provider is preferred when configured; on any failure or when no
  * provider is configured, the deterministic sample provider is used so
- * the feature remains fully functional.
+ * the features remain fully functional.
  * </p>
  *
  * @author DevLaunch
@@ -65,22 +86,28 @@ public class AiServiceImpl implements AiService {
     private final ProjectRepository projectRepository;
     private final CertificationRepository certificationRepository;
     private final AchievementRepository achievementRepository;
+    private final InterviewSessionRepository interviewSessionRepository;
     private final ResumeReviewProvider openAiResumeReviewProvider;
     private final ResumeReviewProvider sampleResumeReviewProvider;
+    private final MockInterviewProvider openAiMockInterviewProvider;
+    private final MockInterviewProvider sampleMockInterviewProvider;
 
     /**
      * Constructs the AI service with the required dependencies.
      *
-     * @param resumeRepository            repository for resume data access
-     * @param userRepository              repository for user data access
-     * @param educationRepository         repository for education data access
-     * @param experienceRepository        repository for experience data access
-     * @param skillRepository             repository for skill data access
-     * @param projectRepository           repository for project data access
-     * @param certificationRepository     repository for certification data access
-     * @param achievementRepository       repository for achievement data access
-     * @param openAiResumeReviewProvider  the primary LLM-backed provider
-     * @param sampleResumeReviewProvider  the deterministic fallback provider
+     * @param resumeRepository             repository for resume data access
+     * @param userRepository               repository for user data access
+     * @param educationRepository          repository for education data access
+     * @param experienceRepository         repository for experience data access
+     * @param skillRepository              repository for skill data access
+     * @param projectRepository            repository for project data access
+     * @param certificationRepository      repository for certification data access
+     * @param achievementRepository        repository for achievement data access
+     * @param interviewSessionRepository   repository for interview history data access
+     * @param openAiResumeReviewProvider   the primary LLM resume review provider
+     * @param sampleResumeReviewProvider   the deterministic resume review fallback
+     * @param openAiMockInterviewProvider  the primary LLM mock interview provider
+     * @param sampleMockInterviewProvider  the deterministic mock interview fallback
      */
     public AiServiceImpl(final ResumeRepository resumeRepository,
                          final UserRepository userRepository,
@@ -90,10 +117,15 @@ public class AiServiceImpl implements AiService {
                          final ProjectRepository projectRepository,
                          final CertificationRepository certificationRepository,
                          final AchievementRepository achievementRepository,
+                         final InterviewSessionRepository interviewSessionRepository,
                          @Qualifier("openAiResumeReviewProvider")
                          final ResumeReviewProvider openAiResumeReviewProvider,
                          @Qualifier("sampleResumeReviewProvider")
-                         final ResumeReviewProvider sampleResumeReviewProvider) {
+                         final ResumeReviewProvider sampleResumeReviewProvider,
+                         @Qualifier("openAiMockInterviewProvider")
+                         final MockInterviewProvider openAiMockInterviewProvider,
+                         @Qualifier("sampleMockInterviewProvider")
+                         final MockInterviewProvider sampleMockInterviewProvider) {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.educationRepository = educationRepository;
@@ -102,8 +134,11 @@ public class AiServiceImpl implements AiService {
         this.projectRepository = projectRepository;
         this.certificationRepository = certificationRepository;
         this.achievementRepository = achievementRepository;
+        this.interviewSessionRepository = interviewSessionRepository;
         this.openAiResumeReviewProvider = openAiResumeReviewProvider;
         this.sampleResumeReviewProvider = sampleResumeReviewProvider;
+        this.openAiMockInterviewProvider = openAiMockInterviewProvider;
+        this.sampleMockInterviewProvider = sampleMockInterviewProvider;
     }
 
     /**
@@ -124,7 +159,84 @@ public class AiServiceImpl implements AiService {
     }
 
     /**
-     * Delegates the analysis to the preferred configured provider,
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MockInterviewStartResponse startMockInterview(final MockInterviewStartRequest request) {
+        final List<InterviewQuestion> questions = generateQuestions(request.getInterviewType());
+
+        log.info("Mock interview started for type={}: {} questions generated",
+                request.getInterviewType(), questions.size());
+
+        return MockInterviewStartResponse.builder()
+                .sessionId(UUID.randomUUID().toString())
+                .interviewType(request.getInterviewType())
+                .questions(questions.stream()
+                        .map(question -> MockInterviewQuestionResponse.builder()
+                                .id(question.id())
+                                .question(question.question())
+                                .hint(question.hint())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public MockInterviewFeedbackResponse submitMockInterview(final MockInterviewSubmitRequest request) {
+        final User user = getAuthenticatedUser();
+
+        final List<InterviewAnswer> answers = request.getAnswers().stream()
+                .map(this::toInterviewAnswer)
+                .toList();
+
+        final MockInterviewFeedback evaluation = evaluate(request.getInterviewType(), answers);
+
+        final InterviewSession session = InterviewSession.builder()
+                .sessionId(request.getSessionId())
+                .interviewType(request.getInterviewType())
+                .overallScore(evaluation.overallScore())
+                .questionCount(answers.size())
+                .completedAt(LocalDateTime.now())
+                .user(user)
+                .build();
+        interviewSessionRepository.save(session);
+
+        log.info("Mock interview submitted for user id={}, type={}: overallScore={}",
+                user.getId(), request.getInterviewType(), evaluation.overallScore());
+
+        return toFeedbackResponse(request.getSessionId(), request.getInterviewType(), evaluation);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MockInterviewHistoryResponse getMockInterviewHistory() {
+        final User user = getAuthenticatedUser();
+
+        final List<InterviewSession> sessions =
+                interviewSessionRepository.findByUserOrderByCompletedAtDesc(user);
+
+        final double average = sessions.stream()
+                .mapToInt(InterviewSession::getOverallScore)
+                .average()
+                .orElse(0.0);
+
+        return MockInterviewHistoryResponse.builder()
+                .history(sessions.stream().map(this::toHistoryItem).toList())
+                .totalInterviews((long) sessions.size())
+                .averageScore(Math.round(average * 10.0) / 10.0)
+                .build();
+    }
+
+    /**
+     * Delegates the resume analysis to the preferred configured provider,
      * falling back to the deterministic sample provider when the primary
      * is not configured or throws.
      *
@@ -145,6 +257,116 @@ public class AiServiceImpl implements AiService {
                     primary.getClass().getSimpleName(), e.getMessage());
             return sampleResumeReviewProvider.analyze(content, targetRole);
         }
+    }
+
+    /**
+     * Generates interview questions using the preferred configured
+     * provider, falling back to the deterministic question bank when the
+     * primary is not configured, throws, or returns no questions.
+     *
+     * @param type the interview category to generate questions for
+     * @return the generated questions
+     */
+    private List<InterviewQuestion> generateQuestions(final InterviewType type) {
+        final MockInterviewProvider primary =
+                openAiMockInterviewProvider.isConfigured()
+                        ? openAiMockInterviewProvider
+                        : sampleMockInterviewProvider;
+
+        try {
+            final List<InterviewQuestion> questions = primary.generateQuestions(type);
+            if (questions.isEmpty()) {
+                throw new IllegalStateException("Provider returned no questions");
+            }
+            return questions;
+        } catch (final Exception e) {
+            log.warn("Mock interview provider '{}' failed to generate questions, "
+                            + "falling back to the question bank: {}",
+                    primary.getClass().getSimpleName(), e.getMessage());
+            return sampleMockInterviewProvider.generateQuestions(type);
+        }
+    }
+
+    /**
+     * Evaluates interview answers using the preferred configured
+     * provider, falling back to deterministic heuristics when the primary
+     * is not configured or throws.
+     *
+     * @param type    the interview category that was practised
+     * @param answers the question/answer pairs to evaluate
+     * @return the structured evaluation result
+     */
+    private MockInterviewFeedback evaluate(final InterviewType type, final List<InterviewAnswer> answers) {
+        final MockInterviewProvider primary =
+                openAiMockInterviewProvider.isConfigured()
+                        ? openAiMockInterviewProvider
+                        : sampleMockInterviewProvider;
+
+        try {
+            return primary.evaluate(type, answers);
+        } catch (final Exception e) {
+            log.warn("Mock interview provider '{}' failed to evaluate answers, "
+                            + "falling back to deterministic evaluation: {}",
+                    primary.getClass().getSimpleName(), e.getMessage());
+            return sampleMockInterviewProvider.evaluate(type, answers);
+        }
+    }
+
+    /**
+     * Maps a request answer DTO to the internal {@link InterviewAnswer}.
+     */
+    private InterviewAnswer toInterviewAnswer(final MockInterviewAnswerRequest answer) {
+        return new InterviewAnswer(answer.getQuestionId(), answer.getQuestion(), answer.getAnswer());
+    }
+
+    /**
+     * Maps the internal evaluation result to the public feedback response
+     * DTO, attaching the session and category identifiers.
+     *
+     * @param sessionId  the session identifier of the interview
+     * @param type       the interview category
+     * @param evaluation the internal evaluation result
+     * @return the public feedback response DTO
+     */
+    private MockInterviewFeedbackResponse toFeedbackResponse(
+            final String sessionId, final InterviewType type,
+            final MockInterviewFeedback evaluation) {
+        final List<MockInterviewFeedbackItemResponse> items = evaluation.feedback().stream()
+                .map(item -> MockInterviewFeedbackItemResponse.builder()
+                        .questionId(item.questionId())
+                        .question(item.question())
+                        .answer(item.answer())
+                        .score(item.score())
+                        .feedback(item.feedback())
+                        .suggestions(item.suggestions())
+                        .build())
+                .toList();
+
+        return MockInterviewFeedbackResponse.builder()
+                .sessionId(sessionId)
+                .interviewType(type)
+                .overallScore(evaluation.overallScore())
+                .feedback(items)
+                .strengths(evaluation.strengths())
+                .areasForImprovement(evaluation.areasForImprovement())
+                .build();
+    }
+
+    /**
+     * Maps an {@link InterviewSession} entity to the public history item
+     * DTO.
+     *
+     * @param session the completed interview session
+     * @return the public history item DTO
+     */
+    private MockInterviewHistoryItemResponse toHistoryItem(final InterviewSession session) {
+        return MockInterviewHistoryItemResponse.builder()
+                .sessionId(session.getSessionId())
+                .interviewType(session.getInterviewType())
+                .completedAt(session.getCompletedAt())
+                .overallScore(session.getOverallScore())
+                .questionCount(session.getQuestionCount())
+                .build();
     }
 
     /**

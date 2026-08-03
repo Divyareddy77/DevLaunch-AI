@@ -3,31 +3,24 @@ package com.devlaunch.service.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * OpenAI-compatible resume review provider.
  * <p>
- * Calls a Chat Completions REST API (OpenAI by default, or any
- * OpenAI-compatible provider) and instructs the model to return a
- * strict JSON analysis of the resume. The provider is only considered
- * configured when an API key is present; otherwise the service layer
- * falls back to the deterministic {@link SampleResumeReviewProvider}.
- * Any network, parsing, or provider error is surfaced so the caller
- * can fall back gracefully.
+ * Uses the shared {@link OpenAiChatCompletions} client to call a Chat
+ * Completions REST API (OpenAI by default, or any OpenAI-compatible
+ * provider) and instructs the model to return a strict JSON analysis of
+ * the resume. The provider is only considered configured when an API key
+ * is present; otherwise the service layer falls back to the deterministic
+ * {@link SampleResumeReviewProvider}. Any network, parsing, or provider
+ * error is surfaced so the caller can fall back gracefully.
  * </p>
  *
  * @author DevLaunch
@@ -50,50 +43,30 @@ public class OpenAiResumeReviewProvider implements ResumeReviewProvider {
                     + "quality and the atsScore rates keyword and structure compatibility with automated "
                     + "screening. Be specific and constructive.";
 
-    private final RestClient restClient;
+    private final OpenAiChatCompletions chatCompletions;
     private final ObjectMapper objectMapper;
-    private final String apiKey;
-    private final String model;
-    private final String baseUrl;
 
     /**
-     * Constructs the provider with the configured LLM settings.
+     * Constructs the provider with the shared Chat Completions client.
      *
-     * @param objectMapper          the Jackson object mapper for request/response handling
-     * @param apiKey                the LLM provider API key (blank when not configured)
-     * @param model                 the LLM model identifier
-     * @param baseUrl               the OpenAI-compatible API base URL
-     * @param connectTimeoutSeconds the connection timeout in seconds
-     * @param readTimeoutSeconds    the read timeout in seconds
+     * @param chatCompletions the shared OpenAI-compatible chat client
+     * @param objectMapper    the Jackson object mapper for response handling
      */
-    public OpenAiResumeReviewProvider(final ObjectMapper objectMapper,
-                                      @Value("${devlaunch.ai.provider-api-key:}") final String apiKey,
-                                      @Value("${devlaunch.ai.model:gpt-4o-mini}") final String model,
-                                      @Value("${devlaunch.ai.base-url:https://api.openai.com/v1}") final String baseUrl,
-                                      @Value("${devlaunch.ai.connect-timeout-seconds:10}") final int connectTimeoutSeconds,
-                                      @Value("${devlaunch.ai.read-timeout-seconds:60}") final int readTimeoutSeconds) {
+    public OpenAiResumeReviewProvider(final OpenAiChatCompletions chatCompletions,
+                                      final ObjectMapper objectMapper) {
+        this.chatCompletions = chatCompletions;
         this.objectMapper = objectMapper;
-        this.apiKey = apiKey;
-        this.model = model;
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-
-        final SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(connectTimeoutSeconds));
-        factory.setReadTimeout(Duration.ofSeconds(readTimeoutSeconds));
-
-        this.restClient = RestClient.builder()
-                .requestFactory(factory)
-                .build();
     }
 
     /**
-     * The provider is configured only when an API key has been supplied.
+     * The provider is configured only when the shared chat client has an
+     * API key.
      *
      * @return {@code true} when an API key is present, {@code false} otherwise
      */
     @Override
     public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank();
+        return chatCompletions.isConfigured();
     }
 
     /**
@@ -113,8 +86,8 @@ public class OpenAiResumeReviewProvider implements ResumeReviewProvider {
         }
 
         final String userPrompt = buildUserPrompt(content, targetRole);
-        final String responseBody = callChatCompletions(userPrompt);
-        final ResumeReviewAnalysis analysis = parseAnalysis(responseBody);
+        final String modelContent = chatCompletions.chat(SYSTEM_PROMPT, userPrompt, 0.3);
+        final ResumeReviewAnalysis analysis = parseAnalysis(modelContent);
 
         log.info("AI resume review completed: resumeScore={}, atsScore={}",
                 analysis.resumeScore(), analysis.atsScore());
@@ -122,69 +95,17 @@ public class OpenAiResumeReviewProvider implements ResumeReviewProvider {
     }
 
     /**
-     * Performs the Chat Completions HTTP request and returns the raw
-     * response body.
-     *
-     * @param userPrompt the user message containing the resume text
-     * @return the raw JSON response body
-     */
-    private String callChatCompletions(final String userPrompt) {
-        final ObjectNode payload = objectMapper.createObjectNode();
-        payload.put("model", model);
-        payload.put("temperature", 0.3);
-
-        final ArrayNode messages = payload.putArray("messages");
-        final ObjectNode systemMessage = messages.addObject();
-        systemMessage.put("role", "system");
-        systemMessage.put("content", SYSTEM_PROMPT);
-
-        final ObjectNode userMessage = messages.addObject();
-        userMessage.put("role", "user");
-        userMessage.put("content", userPrompt);
-
-        final ObjectNode responseFormat = payload.putObject("response_format");
-        responseFormat.put("type", "json_object");
-
-        return restClient.post()
-                .uri(baseUrl + "/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Accept", MediaType.APPLICATION_JSON_VALUE)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(payload)
-                .retrieve()
-                .body(String.class);
-    }
-
-    /**
-     * Parses the Chat Completions response body into a
-     * {@link ResumeReviewAnalysis}, extracting the model's JSON payload
-     * from the first choice message and applying defensive fallbacks for
+     * Parses the model's strict JSON content into a
+     * {@link ResumeReviewAnalysis}, applying defensive fallbacks for
      * missing or malformed fields.
      *
-     * @param responseBody the raw JSON response body
+     * @param modelContent the JSON content returned by the model
      * @return the parsed analysis
-     * @throws IllegalStateException if the response cannot be parsed or
-     *                               contains no usable content
+     * @throws IllegalStateException if the content cannot be parsed
      */
-    private ResumeReviewAnalysis parseAnalysis(final String responseBody) {
-        if (responseBody == null || responseBody.isBlank()) {
-            throw new IllegalStateException("AI provider returned an empty response");
-        }
-
+    private ResumeReviewAnalysis parseAnalysis(final String modelContent) {
         try {
-            final JsonNode root = objectMapper.readTree(responseBody);
-
-            final JsonNode errorMessage = root.path("error").path("message");
-            if (!errorMessage.isMissingNode() && !errorMessage.asText().isBlank()) {
-                throw new IllegalStateException("AI provider error: " + errorMessage.asText());
-            }
-
-            final String content = root.at("/choices/0/message/content").asText(null);
-            if (content == null || content.isBlank()) {
-                throw new IllegalStateException("AI provider returned no analysis content");
-            }
-
-            final JsonNode analysis = objectMapper.readTree(content);
+            final JsonNode analysis = objectMapper.readTree(modelContent);
 
             final List<ResumeReviewAnalysis.Suggestion> suggestions = new ArrayList<>();
             final JsonNode suggestionsNode = analysis.path("suggestions");

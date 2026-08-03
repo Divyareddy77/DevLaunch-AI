@@ -35,6 +35,10 @@ export const MESSAGES = {
 
   // ---- AI ----
   RESUME_REVIEW_ERROR: 'Failed to review the resume. Please try again.',
+  MOCK_INTERVIEW_START_ERROR: 'Failed to start the interview. Please try again.',
+  MOCK_INTERVIEW_SUBMIT_ERROR: 'Failed to submit your interview. Please try again.',
+  INTERVIEW_HISTORY_ERROR: 'Failed to load your interview history. Please try again.',
+  INTERVIEW_SUBMITTED: 'Interview submitted! Here is your AI feedback.',
 
   // ---- Empty states ----
   NO_RESUMES: 'You haven\'t created any resumes yet. Create your first resume to get started.',

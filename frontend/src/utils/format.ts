@@ -36,6 +36,16 @@ export function enumToLabel(value: string | null | undefined): string {
 }
 
 /**
+ * Maps a 0–100 score to a Badge variant for consistent colour coding.
+ * Scores of 70+ are success, 50–69 are warning, and below 50 are danger.
+ */
+export function getScoreBadgeVariant(score: number): 'success' | 'warning' | 'danger' {
+  if (score >= 70) return 'success';
+  if (score >= 50) return 'warning';
+  return 'danger';
+}
+
+/**
  * Truncates a string to the given length, appending an ellipsis if needed.
  */
 export function truncate(str: string, maxLength: number): string {
