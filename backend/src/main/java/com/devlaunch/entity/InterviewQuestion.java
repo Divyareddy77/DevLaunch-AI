@@ -77,4 +77,17 @@ public class InterviewQuestion extends BaseEntity {
     @Column(name = "difficulty", nullable = false, length = 10)
     private Difficulty difficulty;
 
+    /**
+     * Whether this question is available for selection in new interviews.
+     * <p>
+     * Inactive questions are excluded from interview assembly but remain
+     * in the bank, so the future admin module can re-enable them without
+     * data loss. Defaults to {@code true} so seeded and newly created
+     * questions go live immediately.
+     * </p>
+     */
+    @Column(name = "active", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
+    @Builder.Default
+    private boolean active = true;
+
 }

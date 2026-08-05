@@ -27,16 +27,21 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link InterviewQuestionBankServiceImpl}.
  * <p>
- * Verifies that interviews are assembled from the question bank with ten
- * unique questions, the requested category, and the preferred balanced
- * difficulty mix (3 easy / 4 medium / 3 hard), including graceful fill
- * when a difficulty has fewer questions than the target.
+ * Verifies that interviews are assembled from the database-backed question
+ * bank with ten unique questions, the requested category, and the preferred
+ * balanced difficulty mix (3 easy / 4 medium / 3 hard), including graceful
+ * fill when a difficulty has fewer questions than the target and the
+ * validation error when fewer than ten active questions exist.
  * </p>
  *
  * @author DevLaunch
  */
 @ExtendWith(MockitoExtension.class)
 class InterviewQuestionBankServiceImplTest {
+
+    private static final int EASY_TARGET = 3;
+    private static final int MEDIUM_TARGET = 4;
+    private static final int HARD_TARGET = 3;
 
     @Mock
     private InterviewQuestionRepository questionRepository;
@@ -80,6 +85,25 @@ class InterviewQuestionBankServiceImplTest {
     }
 
     /**
+     * Stubs the three per-difficulty random queries. Each stub mirrors the
+     * database {@code LIMIT} behaviour and returns at most the difficulty
+     * target number of questions.
+     */
+    private void stubDifficultyQueries(final List<InterviewQuestion> easy,
+                                       final List<InterviewQuestion> medium,
+                                       final List<InterviewQuestion> hard) {
+        when(questionRepository.findRandomByCategoryAndDifficultyAndActiveTrue(
+                InterviewType.REACT, Difficulty.EASY, EASY_TARGET))
+                .thenReturn(easy.stream().limit(EASY_TARGET).toList());
+        when(questionRepository.findRandomByCategoryAndDifficultyAndActiveTrue(
+                InterviewType.REACT, Difficulty.MEDIUM, MEDIUM_TARGET))
+                .thenReturn(medium.stream().limit(MEDIUM_TARGET).toList());
+        when(questionRepository.findRandomByCategoryAndDifficultyAndActiveTrue(
+                InterviewType.REACT, Difficulty.HARD, HARD_TARGET))
+                .thenReturn(hard.stream().limit(HARD_TARGET).toList());
+    }
+
+    /**
      * Counts the difficulties of the selected questions using the bank
      * entities' ids preserved in the returned DTOs.
      */
@@ -102,7 +126,12 @@ class InterviewQuestionBankServiceImplTest {
     @DisplayName("a full bank yields exactly ten unique questions")
     void selectsTenUniqueQuestions() {
         final List<InterviewQuestion> pool = pool(7, 7, 6);
-        when(questionRepository.findByCategory(InterviewType.REACT)).thenReturn(pool);
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.REACT))
+                .thenReturn(20L);
+        stubDifficultyQueries(
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.EASY).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.MEDIUM).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.HARD).toList());
 
         final List<com.devlaunch.service.ai.InterviewQuestion> selected =
                 service.selectForInterview(InterviewType.REACT);
@@ -118,18 +147,30 @@ class InterviewQuestionBankServiceImplTest {
     @DisplayName("questions are drawn from the requested category")
     void selectsFromRequestedCategory() {
         final List<InterviewQuestion> pool = pool(7, 7, 6);
-        when(questionRepository.findByCategory(InterviewType.REACT)).thenReturn(pool);
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.REACT))
+                .thenReturn(20L);
+        stubDifficultyQueries(
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.EASY).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.MEDIUM).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.HARD).toList());
 
         service.selectForInterview(InterviewType.REACT);
 
-        verify(questionRepository).findByCategory(InterviewType.REACT);
+        verify(questionRepository).countByCategoryAndActiveTrue(InterviewType.REACT);
+        verify(questionRepository).findRandomByCategoryAndDifficultyAndActiveTrue(
+                InterviewType.REACT, Difficulty.EASY, EASY_TARGET);
     }
 
     @Test
     @DisplayName("a full bank prefers three easy, four medium, three hard")
     void prefersBalancedDifficultyMix() {
         final List<InterviewQuestion> pool = pool(7, 7, 6);
-        when(questionRepository.findByCategory(InterviewType.REACT)).thenReturn(pool);
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.REACT))
+                .thenReturn(20L);
+        stubDifficultyQueries(
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.EASY).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.MEDIUM).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.HARD).toList());
 
         final List<com.devlaunch.service.ai.InterviewQuestion> selected =
                 service.selectForInterview(InterviewType.REACT);
@@ -146,7 +187,17 @@ class InterviewQuestionBankServiceImplTest {
         // Only one easy question available — the remaining easy slots must
         // be filled from the medium and hard questions.
         final List<InterviewQuestion> pool = pool(1, 4, 5);
-        when(questionRepository.findByCategory(InterviewType.REACT)).thenReturn(pool);
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.REACT))
+                .thenReturn(10L);
+        stubDifficultyQueries(
+                List.of(pool.get(0)),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.MEDIUM).toList(),
+                pool.stream().filter(q -> q.getDifficulty() == Difficulty.HARD)
+                        .limit(HARD_TARGET).toList());
+        // The fill query returns the whole bank; already-selected questions
+        // must be filtered out so no duplicates appear.
+        when(questionRepository.findRandomByCategoryAndActiveTrue(InterviewType.REACT, 10))
+                .thenReturn(pool);
 
         final List<com.devlaunch.service.ai.InterviewQuestion> selected =
                 service.selectForInterview(InterviewType.REACT);
@@ -156,18 +207,6 @@ class InterviewQuestionBankServiceImplTest {
         assertEquals(1, counts.get(Difficulty.EASY));
         assertEquals(4, counts.get(Difficulty.MEDIUM));
         assertEquals(5, counts.get(Difficulty.HARD));
-    }
-
-    @Test
-    @DisplayName("a bank smaller than ten returns all available questions")
-    void returnsAllAvailableWhenBankIsSmall() {
-        final List<InterviewQuestion> pool = pool(3, 4, 0);
-        when(questionRepository.findByCategory(InterviewType.REACT)).thenReturn(pool);
-
-        final List<com.devlaunch.service.ai.InterviewQuestion> selected =
-                service.selectForInterview(InterviewType.REACT);
-
-        assertEquals(7, selected.size());
         final Set<String> ids = new HashSet<>();
         for (final com.devlaunch.service.ai.InterviewQuestion question : selected) {
             assertTrue(ids.add(question.id()), "duplicate question id: " + question.id());
@@ -175,11 +214,26 @@ class InterviewQuestionBankServiceImplTest {
     }
 
     @Test
-    @DisplayName("an empty category throws so the caller can surface a clear error")
-    void throwsWhenCategoryHasNoQuestions() {
-        when(questionRepository.findByCategory(InterviewType.SQL)).thenReturn(List.of());
+    @DisplayName("a category with fewer than ten active questions throws a validation error")
+    void throwsWhenFewerThanTenActiveQuestions() {
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.REACT))
+                .thenReturn(7L);
 
-        assertThrows(IllegalStateException.class,
+        final IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.selectForInterview(InterviewType.REACT));
+
+        assertEquals("Not enough interview questions available for this category.",
+                exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("an empty category throws the same validation error")
+    void throwsWhenCategoryHasNoActiveQuestions() {
+        when(questionRepository.countByCategoryAndActiveTrue(InterviewType.SQL))
+                .thenReturn(0L);
+
+        assertThrows(IllegalArgumentException.class,
                 () -> service.selectForInterview(InterviewType.SQL));
     }
 
