@@ -38,7 +38,7 @@ public class OpenAiMockInterviewProvider implements MockInterviewProvider {
                     + "for the requested category and return STRICT JSON only, with no markdown "
                     + "formatting and no commentary outside the JSON object. Use exactly this schema: "
                     + "{\"questions\": [{\"id\": string, \"question\": string, \"hint\": string}]}. "
-                    + "Return exactly 5 questions. Each hint should be one sentence of practical "
+                    + "Return exactly 10 questions. Each hint should be one sentence of practical "
                     + "guidance for answering the question well.";
 
     /** System prompt instructing the model to return feedback as strict JSON. */
@@ -49,9 +49,13 @@ public class OpenAiMockInterviewProvider implements MockInterviewProvider {
                     + "\"feedback\": [{\"questionId\": string, \"question\": string, \"answer\": string, "
                     + "\"score\": 0-100 integer, \"feedback\": string, \"suggestions\": [string]}], "
                     + "\"strengths\": [string], \"areasForImprovement\": [string]}. The overallScore is "
-                    + "the average of the per-answer scores. Score relevance to the question first: "
-                    + "an answer that does not address its question must receive a score of 0-20 "
-                    + "regardless of its length or grammar. Be specific, encouraging, and constructive.";
+                    + "the average of the per-answer scores. Score in two stages: first verify the "
+                    + "answer belongs to the interview category, then verify it addresses the "
+                    + "specific concepts of its own question (for example, a props-and-state answer "
+                    + "to a React Hooks question does not address the question). An answer that does "
+                    + "not cover its question's key concepts must receive a score of 0-20 regardless "
+                    + "of its length, grammar, or use of generic category terms. Be specific, "
+                    + "encouraging, and constructive.";
 
     private final OpenAiChatCompletions chatCompletions;
     private final ObjectMapper objectMapper;

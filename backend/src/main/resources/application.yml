@@ -26,6 +26,16 @@ spring:
         jdbc:
           batch_size: ${JPA_BATCH_SIZE:25}
     open-in-view: false
+    # Run the SQL seed data after Hibernate has created/updated the schema
+    # so the interview question bank is populated on startup.
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      # data.sql is executed on every startup (including non-embedded databases)
+      # and is idempotent thanks to INSERT IGNORE + the unique key on
+      # interview_questions(category, question).
+      mode: always
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
