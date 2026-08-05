@@ -26,6 +26,7 @@ import {
   Activity,
   Megaphone,
   MessageSquare,
+  Bell,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
@@ -52,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'LeetCode Tracker', path: ROUTES.LEETCODE_TRACKER, icon: Code2 },
   { label: 'AI Mock Interview', path: ROUTES.MOCK_INTERVIEW, icon: Bot },
   { label: 'AI Resume Review', path: ROUTES.RESUME_REVIEW, icon: FileSearch },
+  { label: 'Notifications', path: ROUTES.NOTIFICATIONS, icon: Bell },
   { label: 'Profile', path: ROUTES.PROFILE, icon: User },
 ];
 

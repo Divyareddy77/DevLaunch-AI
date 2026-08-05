@@ -18,8 +18,10 @@ import {
   Link2,
   Award,
   Target,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useNotifications } from '../../context/NotificationContext';
 import { dashboardService } from '../../services/dashboard.service';
 import { announcementService } from '../../services/announcement.service';
 import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
@@ -98,6 +100,7 @@ const ProgressRing: React.FC<{ score: number; size?: number; strokeWidth?: numbe
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
 
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -292,6 +295,35 @@ export const DashboardPage: React.FC = () => {
             <p className="text-sm font-medium text-gray-500">Start your journey</p>
             <p className="mt-0.5 text-xs text-gray-400">
               Complete tasks across modules to earn achievements
+            </p>
+          </div>
+        </DashboardCard>
+
+        {/* Notifications summary */}
+        <DashboardCard
+          title="Notifications"
+          icon={<Bell className="h-5 w-5" />}
+          action={
+            <button
+              onClick={() => navigate(ROUTES.NOTIFICATIONS)}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              View All
+            </button>
+          }
+        >
+          <div className="flex flex-col items-center">
+            <span
+              className={`text-4xl font-bold ${
+                unreadCount > 0 ? 'text-red-500' : 'text-gray-900'
+              }`}
+            >
+              {unreadCount}
+            </span>
+            <p className="mt-1 text-xs text-gray-400">
+              {unreadCount === 0
+                ? 'unread · all caught up'
+                : `unread ${unreadCount === 1 ? 'notification' : 'notifications'}`}
             </p>
           </div>
         </DashboardCard>

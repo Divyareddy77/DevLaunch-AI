@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getNavigationItems } from '../utils/navigation';
+import { NotificationProvider } from '../context/NotificationContext';
+import { NotificationBell } from '../components/notifications/NotificationBell';
 import { APP } from '../constants/app';
 import { ROUTES } from '../constants/routes';
 
@@ -34,7 +36,8 @@ export const DashboardLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <NotificationProvider>
+      <div className="flex min-h-screen bg-gray-50">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -116,8 +119,9 @@ export const DashboardLayout: React.FC = () => {
             <div />
           </div>
 
-          {/* User avatar dropdown */}
+          {/* Notifications bell + user avatar dropdown */}
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium text-gray-700">
                 {user?.firstName} {user?.lastName}
@@ -139,5 +143,6 @@ export const DashboardLayout: React.FC = () => {
         </main>
       </div>
     </div>
+    </NotificationProvider>
   );
 };

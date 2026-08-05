@@ -11,6 +11,7 @@ import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.InterviewType;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
 import com.devlaunch.repository.EducationRepository;
@@ -25,6 +26,7 @@ import com.devlaunch.service.ai.MockInterviewFeedback;
 import com.devlaunch.service.ai.MockInterviewProvider;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
+import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +45,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -106,6 +109,9 @@ class AiServiceImplTest {
     @Mock
     private MockInterviewProvider openAiMockInterviewProvider;
 
+    @Mock
+    private NotificationService notificationService;
+
     private AiServiceImpl service;
 
     @BeforeEach
@@ -115,7 +121,8 @@ class AiServiceImplTest {
                 skillRepository, projectRepository, certificationRepository, achievementRepository,
                 interviewSessionRepository, resumeReviewRepository,
                 openAiResumeReviewProvider, sampleResumeReviewProvider,
-                openAiMockInterviewProvider, sampleMockInterviewProvider);
+                openAiMockInterviewProvider, sampleMockInterviewProvider,
+                notificationService);
     }
 
     @AfterEach
@@ -168,11 +175,17 @@ class AiServiceImplTest {
     @DisplayName("submitting an interview snapshots the exact answered questions")
     void submitPersistsTheExactAnsweredQuestions() {
         authenticate();
-        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user()));
+        final User user = user();
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
         when(sampleMockInterviewProvider.evaluate(eq(InterviewType.REACT), anyList()))
                 .thenReturn(feedback());
 
         service.submitMockInterview(submitRequest());
+
+        // The completed interview always produces a notification
+        verify(notificationService).createNotification(
+                eq(user), eq(NotificationType.MOCK_INTERVIEW),
+                eq("Interview completed"), anyString());
 
         final ArgumentCaptor<InterviewSession> captor =
                 ArgumentCaptor.forClass(InterviewSession.class);

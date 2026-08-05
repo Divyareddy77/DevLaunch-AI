@@ -8,6 +8,7 @@ import com.devlaunch.entity.Project;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
@@ -17,6 +18,7 @@ import com.devlaunch.repository.ProjectRepository;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.UserRepository;
+import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.service.interfaces.ResumePdfService;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
@@ -70,6 +72,7 @@ public class ResumePdfServiceImpl implements ResumePdfService {
     private final ProjectRepository projectRepository;
     private final CertificationRepository certificationRepository;
     private final AchievementRepository achievementRepository;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the PDF generation service with the required dependencies.
@@ -82,6 +85,7 @@ public class ResumePdfServiceImpl implements ResumePdfService {
      * @param projectRepository       repository for project data access
      * @param certificationRepository repository for certification data access
      * @param achievementRepository   repository for achievement data access
+     * @param notificationService     service for creating user notifications
      */
     public ResumePdfServiceImpl(final ResumeRepository resumeRepository,
                                 final UserRepository userRepository,
@@ -90,7 +94,8 @@ public class ResumePdfServiceImpl implements ResumePdfService {
                                 final SkillRepository skillRepository,
                                 final ProjectRepository projectRepository,
                                 final CertificationRepository certificationRepository,
-                                final AchievementRepository achievementRepository) {
+                                final AchievementRepository achievementRepository,
+                                final NotificationService notificationService) {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.educationRepository = educationRepository;
@@ -99,18 +104,26 @@ public class ResumePdfServiceImpl implements ResumePdfService {
         this.projectRepository = projectRepository;
         this.certificationRepository = certificationRepository;
         this.achievementRepository = achievementRepository;
+        this.notificationService = notificationService;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public byte[] generatePdf(final Long resumeId) {
         // Verify the resume exists and belongs to the authenticated user
         final Resume resume = getResumeOwnedByAuthenticatedUser(resumeId);
         log.info("Generating PDF for resume id={} owned by user email={}",
                 resume.getId(), resume.getUser().getEmail());
+
+        // Notify the user that their resume was downloaded. The transaction
+        // is intentionally read-write so the notification persists alongside
+        // the download.
+        notificationService.createNotification(resume.getUser(), NotificationType.RESUME,
+                "Resume downloaded",
+                "Your resume was downloaded as a PDF. Good luck with your applications!");
 
         return createPdfContent(resume);
     }

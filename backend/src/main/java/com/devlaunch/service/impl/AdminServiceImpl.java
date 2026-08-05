@@ -21,6 +21,7 @@ import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.StudyPlanner;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.ApplicationStatus;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.RoleType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.AchievementRepository;
@@ -38,6 +39,7 @@ import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.AdminService;
+import com.devlaunch.service.interfaces.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -86,6 +88,7 @@ public class AdminServiceImpl implements AdminService {
     private final ExperienceRepository experienceRepository;
     private final ProjectRepository projectRepository;
     private final SkillRepository skillRepository;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the admin service with the required repositories.
@@ -104,6 +107,7 @@ public class AdminServiceImpl implements AdminService {
      * @param experienceRepository     repository for experience data access
      * @param projectRepository        repository for project data access
      * @param skillRepository          repository for skill data access
+     * @param notificationService      service for creating and deleting user notifications
      */
     public AdminServiceImpl(final UserRepository userRepository,
                             final ResumeRepository resumeRepository,
@@ -118,7 +122,8 @@ public class AdminServiceImpl implements AdminService {
                             final EducationRepository educationRepository,
                             final ExperienceRepository experienceRepository,
                             final ProjectRepository projectRepository,
-                            final SkillRepository skillRepository) {
+                            final SkillRepository skillRepository,
+                            final NotificationService notificationService) {
         this.userRepository = userRepository;
         this.resumeRepository = resumeRepository;
         this.jobApplicationRepository = jobApplicationRepository;
@@ -133,6 +138,7 @@ public class AdminServiceImpl implements AdminService {
         this.experienceRepository = experienceRepository;
         this.projectRepository = projectRepository;
         this.skillRepository = skillRepository;
+        this.notificationService = notificationService;
     }
 
     // ─── Dashboard ───────────────────────────────────────────────────────────
@@ -421,6 +427,14 @@ public class AdminServiceImpl implements AdminService {
 
         final Announcement saved = announcementRepository.save(announcement);
 
+        // Published announcements fan out to every user as a notification,
+        // reusing the announcement's own title and content — the announcement
+        // storage itself is never duplicated.
+        if (Boolean.TRUE.equals(saved.getIsActive())) {
+            notificationService.notifyAllUsers(NotificationType.ANNOUNCEMENT,
+                    saved.getTitle(), saved.getContent());
+        }
+
         log.info("Admin {} created announcement id={}",
                 saved.getCreatedBy().getEmail(), saved.getId());
 
@@ -437,6 +451,8 @@ public class AdminServiceImpl implements AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Announcement with id " + id + " not found"));
 
+        final Boolean wasActive = announcement.getIsActive();
+
         announcement.setTitle(request.getTitle().trim());
         announcement.setContent(request.getContent().trim());
         if (request.getIsActive() != null) {
@@ -444,6 +460,13 @@ public class AdminServiceImpl implements AdminService {
         }
 
         final Announcement saved = announcementRepository.save(announcement);
+
+        // When a previously drafted announcement is published, fan it out to
+        // every user exactly like a freshly created active announcement.
+        if (Boolean.TRUE.equals(saved.getIsActive()) && !Boolean.TRUE.equals(wasActive)) {
+            notificationService.notifyAllUsers(NotificationType.ANNOUNCEMENT,
+                    saved.getTitle(), saved.getContent());
+        }
 
         log.info("Admin {} updated announcement id={}",
                 getAuthenticatedAdmin().getEmail(), id);
@@ -534,6 +557,10 @@ public class AdminServiceImpl implements AdminService {
         // must be removed before either row is deleted.
         resumeReviewRepository.deleteAll(
                 resumeReviewRepository.findByUserOrderByCreatedAtDesc(user));
+
+        // Notifications reference the user, so they must be removed before
+        // the user row to keep the notifications.user_id FK constraint valid.
+        notificationService.deleteAllForUser(user);
 
         resumes.forEach(this::deleteResumeSections);
         resumeRepository.deleteAll(resumes);

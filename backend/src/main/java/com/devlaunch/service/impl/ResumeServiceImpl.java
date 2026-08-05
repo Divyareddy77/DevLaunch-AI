@@ -7,11 +7,13 @@ import com.devlaunch.dto.response.ResumeTemplateResponse;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeTemplate;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.ResumeMapper;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.ResumeTemplateRepository;
 import com.devlaunch.repository.UserRepository;
+import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.service.interfaces.ResumeService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,6 +44,7 @@ public class ResumeServiceImpl implements ResumeService {
     private final ResumeTemplateRepository resumeTemplateRepository;
     private final UserRepository userRepository;
     private final ResumeMapper resumeMapper;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the resume service with the required dependencies.
@@ -50,15 +53,18 @@ public class ResumeServiceImpl implements ResumeService {
      * @param resumeTemplateRepository repository for resume template data access
      * @param userRepository           repository for user data access
      * @param resumeMapper             mapper for DTO-entity conversions
+     * @param notificationService      service for creating user notifications
      */
     public ResumeServiceImpl(final ResumeRepository resumeRepository,
                              final ResumeTemplateRepository resumeTemplateRepository,
                              final UserRepository userRepository,
-                             final ResumeMapper resumeMapper) {
+                             final ResumeMapper resumeMapper,
+                             final NotificationService notificationService) {
         this.resumeRepository = resumeRepository;
         this.resumeTemplateRepository = resumeTemplateRepository;
         this.userRepository = userRepository;
         this.resumeMapper = resumeMapper;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -77,6 +83,11 @@ public class ResumeServiceImpl implements ResumeService {
 
         // Persist the new resume
         final Resume savedResume = resumeRepository.save(resume);
+
+        // Notify the user that their resume was created
+        notificationService.createNotification(user, NotificationType.RESUME,
+                "Resume created",
+                "Your resume was created successfully. Keep adding details to strengthen your profile.");
 
         // Return the resume data
         return resumeMapper.toResumeResponse(savedResume);
@@ -122,6 +133,11 @@ public class ResumeServiceImpl implements ResumeService {
 
         // Persist the updated resume
         final Resume savedResume = resumeRepository.save(resume);
+
+        // Notify the user that their resume was updated
+        notificationService.createNotification(resume.getUser(), NotificationType.RESUME,
+                "Resume updated",
+                "Your resume was updated successfully. Your profile stays in sync with the changes.");
 
         // Return the updated resume data
         return resumeMapper.toResumeResponse(savedResume);

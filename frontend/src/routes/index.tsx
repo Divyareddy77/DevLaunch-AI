@@ -32,6 +32,7 @@ import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ResumeReviewPage } from '../pages/ai/ResumeReviewPage';
 import { MockInterviewPage } from '../pages/ai/MockInterviewPage';
+import { NotificationsPage } from '../pages/notifications/NotificationsPage';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { AdminResumesPage } from '../pages/admin/AdminResumesPage';
@@ -137,6 +138,12 @@ export const routes: RouteObject[] = [
           {
             path: ROUTES.LEETCODE_TRACKER,
             element: <LeetCodeTrackerPage />,
+          },
+
+          // ---- Notifications ----
+          {
+            path: ROUTES.NOTIFICATIONS,
+            element: <NotificationsPage />,
           },
 
           // ---- Profile ----

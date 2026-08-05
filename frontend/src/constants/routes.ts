@@ -28,6 +28,7 @@ export const ROUTES = {
   GITHUB_ANALYTICS: '/github',
   LEETCODE_TRACKER: '/leetcode',
   PROFILE: '/profile',
+  NOTIFICATIONS: '/notifications',
 
   // AI module routes (future)
   MOCK_INTERVIEW: '/ai/mock-interview',

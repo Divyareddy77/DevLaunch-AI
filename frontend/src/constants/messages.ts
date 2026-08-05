@@ -54,6 +54,11 @@ export const MESSAGES = {
   NO_NOTIFICATIONS: 'You\'re all caught up! No new notifications.',
   NO_RESULTS: 'No results found. Try adjusting your search or filters.',
 
+  // ---- Notifications ----
+  NOTIFICATIONS_ALL_READ: 'All notifications marked as read.',
+  NOTIFICATION_DELETE_SUCCESS: 'Notification has been deleted successfully.',
+  NOTIFICATIONS_LOAD_ERROR: 'Failed to load notifications. Please try again.',
+
   // ---- Validation ----
   REQUIRED_FIELD: 'This field is required.',
   INVALID_EMAIL: 'Please enter a valid email address.',

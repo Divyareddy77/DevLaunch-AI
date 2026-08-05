@@ -24,6 +24,7 @@ import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.InterviewType;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
@@ -43,6 +44,8 @@ import com.devlaunch.service.ai.ResumeContent;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
 import com.devlaunch.service.interfaces.AiService;
+import com.devlaunch.service.interfaces.NotificationService;
+import com.devlaunch.util.EnumLabels;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,6 +57,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,6 +99,7 @@ public class AiServiceImpl implements AiService {
     private final ResumeReviewProvider sampleResumeReviewProvider;
     private final MockInterviewProvider openAiMockInterviewProvider;
     private final MockInterviewProvider sampleMockInterviewProvider;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the AI service with the required dependencies.
@@ -113,6 +118,7 @@ public class AiServiceImpl implements AiService {
      * @param sampleResumeReviewProvider   the deterministic resume review fallback
      * @param openAiMockInterviewProvider  the primary LLM mock interview provider
      * @param sampleMockInterviewProvider  the deterministic mock interview fallback
+     * @param notificationService          service for creating user notifications
      */
     public AiServiceImpl(final ResumeRepository resumeRepository,
                          final UserRepository userRepository,
@@ -131,7 +137,8 @@ public class AiServiceImpl implements AiService {
                          @Qualifier("openAiMockInterviewProvider")
                          final MockInterviewProvider openAiMockInterviewProvider,
                          @Qualifier("sampleMockInterviewProvider")
-                         final MockInterviewProvider sampleMockInterviewProvider) {
+                         final MockInterviewProvider sampleMockInterviewProvider,
+                         final NotificationService notificationService) {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.educationRepository = educationRepository;
@@ -146,6 +153,7 @@ public class AiServiceImpl implements AiService {
         this.sampleResumeReviewProvider = sampleResumeReviewProvider;
         this.openAiMockInterviewProvider = openAiMockInterviewProvider;
         this.sampleMockInterviewProvider = sampleMockInterviewProvider;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -159,6 +167,12 @@ public class AiServiceImpl implements AiService {
         final ResumeContent content = buildResumeContent(resume);
         final ResumeReviewAnalysis analysis = analyze(content, request.getTargetRole());
 
+        // Snapshot the previous best review so score improvements can be
+        // celebrated before the new review is persisted.
+        final ResumeReview previousReview = resumeReviewRepository.findByResume(resume).stream()
+                .max(Comparator.comparing(ResumeReview::getId))
+                .orElse(null);
+
         // Persist a summary record of this review so the admin module can
         // monitor AI resume review activity. The full analysis is not stored.
         resumeReviewRepository.save(ResumeReview.builder()
@@ -168,6 +182,21 @@ public class AiServiceImpl implements AiService {
                 .resumeScore(analysis.resumeScore())
                 .atsScore(analysis.atsScore())
                 .build());
+
+        // Notify the user that their review completed
+        notificationService.createNotification(resume.getUser(), NotificationType.RESUME_REVIEW,
+                "Resume review completed",
+                "Your resume scored " + analysis.resumeScore()
+                        + "/100 (ATS: " + analysis.atsScore()
+                        + "/100). Check the suggestions to level it up.");
+
+        // Celebrate an improved score over the previous best review
+        if (previousReview != null && analysis.resumeScore() > previousReview.getResumeScore()) {
+            notificationService.createNotification(resume.getUser(), NotificationType.RESUME_REVIEW,
+                    "Resume score improved",
+                    "Your resume score improved from " + previousReview.getResumeScore()
+                            + " to " + analysis.resumeScore() + ". Great progress!");
+        }
 
         log.info("Resume review completed for resume id={}: resumeScore={}, atsScore={}",
                 resume.getId(), analysis.resumeScore(), analysis.atsScore());
@@ -203,6 +232,19 @@ public class AiServiceImpl implements AiService {
     public MockInterviewFeedbackResponse submitMockInterview(final MockInterviewSubmitRequest request) {
         final User user = getAuthenticatedUser();
 
+        // Snapshot the user's existing history before the new session is
+        // persisted so milestone notifications compare against prior results.
+        final List<InterviewSession> previousSessions =
+                interviewSessionRepository.findByUserOrderByCompletedAtDesc(user);
+        final int previousMaxScore = previousSessions.stream()
+                .mapToInt(InterviewSession::getOverallScore)
+                .max()
+                .orElse(0);
+        final double previousAverageScore = previousSessions.stream()
+                .mapToInt(InterviewSession::getOverallScore)
+                .average()
+                .orElse(0.0);
+
         final List<InterviewAnswer> answers = request.getAnswers().stream()
                 .map(this::toInterviewAnswer)
                 .toList();
@@ -222,6 +264,36 @@ public class AiServiceImpl implements AiService {
                 .user(user)
                 .build();
         interviewSessionRepository.save(session);
+
+        // Always notify the user that the interview completed
+        notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
+                "Interview completed",
+                "Your " + EnumLabels.toLabel(request.getInterviewType())
+                        + " mock interview scored " + evaluation.overallScore()
+                        + "/100. Review the feedback to level up.");
+
+        // Celebrate a new personal best over the previous best session
+        if (evaluation.overallScore() > previousMaxScore) {
+            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
+                    "New highest score",
+                    "New personal best! You scored " + evaluation.overallScore()
+                            + "/100 in your " + EnumLabels.toLabel(request.getInterviewType())
+                            + " interview.");
+        } else {
+            // Otherwise celebrate an improved average across all sessions
+            final long previousSum = previousSessions.stream()
+                    .mapToInt(InterviewSession::getOverallScore)
+                    .sum();
+            final double newAverage =
+                    (previousSum + evaluation.overallScore()) / (double) (previousSessions.size() + 1);
+            if (newAverage > previousAverageScore) {
+                final double roundedAverage = Math.round(newAverage * 10.0) / 10.0;
+                notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
+                        "Average score improved",
+                        "Your average interview score improved to " + roundedAverage
+                                + "/100. Consistency pays off!");
+            }
+        }
 
         log.info("Mock interview submitted for user id={}, type={}: overallScore={}",
                 user.getId(), request.getInterviewType(), evaluation.overallScore());

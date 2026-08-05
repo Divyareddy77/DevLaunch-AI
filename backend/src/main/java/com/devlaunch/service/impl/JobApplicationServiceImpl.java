@@ -6,12 +6,16 @@ import com.devlaunch.dto.response.JobApplicationResponse;
 import com.devlaunch.entity.JobApplication;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.ApplicationStatus;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.JobApplicationMapper;
 import com.devlaunch.repository.JobApplicationRepository;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.JobApplicationService;
+import com.devlaunch.service.interfaces.NotificationService;
+import com.devlaunch.util.EnumLabels;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -42,6 +46,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final JobApplicationMapper jobApplicationMapper;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the job application service with the required dependencies.
@@ -50,15 +55,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      * @param resumeRepository         repository for resume data access
      * @param userRepository           repository for user data access
      * @param jobApplicationMapper     mapper for DTO-entity conversions
+     * @param notificationService      service for creating user notifications
      */
     public JobApplicationServiceImpl(final JobApplicationRepository jobApplicationRepository,
                                      final ResumeRepository resumeRepository,
                                      final UserRepository userRepository,
-                                     final JobApplicationMapper jobApplicationMapper) {
+                                     final JobApplicationMapper jobApplicationMapper,
+                                     final NotificationService notificationService) {
         this.jobApplicationRepository = jobApplicationRepository;
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.jobApplicationMapper = jobApplicationMapper;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -83,6 +91,12 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
         // Persist the new job application
         final JobApplication savedJobApplication = jobApplicationRepository.save(jobApplication);
+
+        // Notify the user that their application was added to the tracker
+        notificationService.createNotification(user, NotificationType.JOB,
+                "Job application added",
+                "Your application for " + jobApplication.getJobRole()
+                        + " at " + jobApplication.getCompanyName() + " was added to your tracker.");
 
         // Return the job application data
         return jobApplicationMapper.toJobApplicationResponse(savedJobApplication);
@@ -120,6 +134,8 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                                                        final UpdateJobApplicationRequest request) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
 
+        final ApplicationStatus previousStatus = jobApplication.getStatus();
+
         // Update the editable fields
         jobApplication.setCompanyName(request.getCompanyName());
         jobApplication.setJobRole(request.getJobRole());
@@ -152,6 +168,14 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         // Persist the updated job application
         final JobApplication savedJobApplication = jobApplicationRepository.save(jobApplication);
 
+        // Notify the user when the application status changes so important
+        // milestones (interview, offer, rejection) never go unnoticed
+        final ApplicationStatus newStatus = jobApplication.getStatus();
+        if (newStatus != previousStatus) {
+            notifyStatusChange(jobApplication.getUser(),
+                    jobApplication.getCompanyName(), jobApplication.getJobRole(), newStatus);
+        }
+
         // Return the updated job application data
         return jobApplicationMapper.toJobApplicationResponse(savedJobApplication);
     }
@@ -164,6 +188,40 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     public void deleteJobApplication(final Long id) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
         jobApplicationRepository.delete(jobApplication);
+    }
+
+    /**
+     * Creates a status-change notification for the given application.
+     * <p>
+     * Interview, offer, and rejection milestones get dedicated messages so
+     * the user sees the headline at a glance; every other status change
+     * falls back to a generic update message.
+     * </p>
+     *
+     * @param user    the user to notify
+     * @param company the company the user applied to
+     * @param role    the job role applied for
+     * @param status  the new application status
+     */
+    private void notifyStatusChange(final User user, final String company, final String role,
+                                    final ApplicationStatus status) {
+        switch (status) {
+            case INTERVIEW -> notificationService.createNotification(user, NotificationType.JOB,
+                    "Interview scheduled",
+                    "Great news! Your application at " + company
+                            + " has moved to the interview stage. Time to prepare!");
+            case OFFER -> notificationService.createNotification(user, NotificationType.JOB,
+                    "Offer received",
+                    "Congratulations! You received an offer from " + company + ".");
+            case REJECTED -> notificationService.createNotification(user, NotificationType.JOB,
+                    "Application rejected",
+                    "Your application at " + company
+                            + " was rejected. Don't give up — keep applying!");
+            default -> notificationService.createNotification(user, NotificationType.JOB,
+                    "Status updated",
+                    "Your application for " + role + " at " + company
+                            + " is now " + EnumLabels.toLabel(status) + ".");
+        }
     }
 
     /**
