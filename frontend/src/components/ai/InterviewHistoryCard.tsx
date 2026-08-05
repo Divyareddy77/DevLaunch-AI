@@ -8,8 +8,8 @@
  * @author DevLaunch
  */
 
-import React from 'react';
-import { History, CalendarCheck, Award } from 'lucide-react';
+import React, { useState } from 'react';
+import { History, CalendarCheck, Award, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Spinner } from '../ui/Spinner';
@@ -45,6 +45,9 @@ export const InterviewHistoryCard: React.FC<InterviewHistoryCardProps> = ({
   error,
   onRetry,
 }) => {
+  /** The session whose questions are currently expanded, if any. */
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+
   return (
     <Card
       header={
@@ -95,24 +98,54 @@ export const InterviewHistoryCard: React.FC<InterviewHistoryCardProps> = ({
 
             {/* Session list */}
             <ul className="space-y-2.5">
-              {data.history.map((item) => (
-                <li
-                  key={item.sessionId}
-                  className="flex flex-col gap-2 rounded-lg border border-gray-100 p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant={categoryVariant[item.interviewType]}>
-                      {enumToLabel(item.interviewType)}
-                    </Badge>
-                    <p className="text-sm text-gray-500">
-                      {formatDate(item.completedAt)} · {item.questionCount} questions
-                    </p>
-                  </div>
-                  <Badge variant={getScoreBadgeVariant(item.overallScore)} size="sm">
-                    {item.overallScore}/100
-                  </Badge>
-                </li>
-              ))}
+              {data.history.map((item) => {
+                const expanded = expandedSession === item.sessionId;
+                return (
+                  <li key={item.sessionId} className="rounded-lg border border-gray-100 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge variant={categoryVariant[item.interviewType]}>
+                          {enumToLabel(item.interviewType)}
+                        </Badge>
+                        <p className="text-sm text-gray-500">
+                          {formatDate(item.completedAt)} · {item.questionCount} questions
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {item.questions && item.questions.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedSession(expanded ? null : item.sessionId)
+                            }
+                            aria-expanded={expanded}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 transition-colors hover:text-indigo-800"
+                          >
+                            {expanded ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                            {expanded ? 'Hide questions' : 'View questions'}
+                          </button>
+                        )}
+                        <Badge variant={getScoreBadgeVariant(item.overallScore)} size="sm">
+                          {item.overallScore}/100
+                        </Badge>
+                      </div>
+                    </div>
+                    {expanded && item.questions && (
+                      <ol className="mt-3 list-decimal space-y-1.5 border-t border-gray-100 pl-5 pt-3">
+                        {item.questions.map((question) => (
+                          <li key={question.id} className="text-sm text-gray-600">
+                            {question.question}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )

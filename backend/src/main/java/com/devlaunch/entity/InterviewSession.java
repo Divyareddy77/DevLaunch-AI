@@ -1,13 +1,16 @@
 package com.devlaunch.entity;
 
 import com.devlaunch.entity.enums.InterviewType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,6 +23,8 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Represents a completed mock interview session tracked for a registered user.
@@ -39,8 +44,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(callSuper = true, exclude = {"user"})
-@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true, exclude = {"user", "questions"})
+@EqualsAndHashCode(callSuper = true, exclude = {"user", "questions"})
 public class InterviewSession extends BaseEntity {
 
     /**
@@ -97,5 +102,21 @@ public class InterviewSession extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    /**
+     * The exact questions presented during this session, snapshotted at
+     * submission time in the order they were answered.
+     * <p>
+     * The question text is copied from the bank when the session is
+     * submitted, so later additions, edits, or deletions of bank
+     * questions never alter past interview history.
+     * </p>
+     */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "interview_session_questions",
+            joinColumns = @JoinColumn(name = "interview_session_id"))
+    @OrderColumn(name = "question_order")
+    @Builder.Default
+    private List<InterviewSessionQuestion> questions = new ArrayList<>();
 
 }

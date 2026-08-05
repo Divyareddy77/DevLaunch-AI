@@ -107,6 +107,8 @@ export interface InterviewHistoryItem {
   overallScore: number;
   /** Number of questions in the session. */
   questionCount: number;
+  /** The exact questions presented in the session, as originally answered. */
+  questions?: InterviewQuestion[];
 }
 
 /** Response for the interview history endpoint. */

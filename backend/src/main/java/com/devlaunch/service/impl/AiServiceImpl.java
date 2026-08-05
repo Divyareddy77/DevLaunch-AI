@@ -17,6 +17,7 @@ import com.devlaunch.entity.Certification;
 import com.devlaunch.entity.Education;
 import com.devlaunch.entity.Experience;
 import com.devlaunch.entity.InterviewSession;
+import com.devlaunch.entity.InterviewSessionQuestion;
 import com.devlaunch.entity.Project;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.Skill;
@@ -173,11 +174,7 @@ public class AiServiceImpl implements AiService {
                 .sessionId(UUID.randomUUID().toString())
                 .interviewType(request.getInterviewType())
                 .questions(questions.stream()
-                        .map(question -> MockInterviewQuestionResponse.builder()
-                                .id(question.id())
-                                .question(question.question())
-                                .hint(question.hint())
-                                .build())
+                        .map(this::toQuestionResponse)
                         .toList())
                 .build();
     }
@@ -202,6 +199,10 @@ public class AiServiceImpl implements AiService {
                 .overallScore(evaluation.overallScore())
                 .questionCount(answers.size())
                 .completedAt(LocalDateTime.now())
+                .questions(request.getAnswers().stream()
+                        .map(answer -> new InterviewSessionQuestion(
+                                answer.getQuestionId(), answer.getQuestion()))
+                        .toList())
                 .user(user)
                 .build();
         interviewSessionRepository.save(session);
@@ -261,8 +262,8 @@ public class AiServiceImpl implements AiService {
 
     /**
      * Generates interview questions using the preferred configured
-     * provider, falling back to the deterministic question bank when the
-     * primary is not configured, throws, or returns no questions.
+     * provider, falling back to the database-backed question bank when
+     * the primary is not configured, throws, or returns no questions.
      *
      * @param type the interview category to generate questions for
      * @return the generated questions
@@ -360,12 +361,41 @@ public class AiServiceImpl implements AiService {
      * @return the public history item DTO
      */
     private MockInterviewHistoryItemResponse toHistoryItem(final InterviewSession session) {
+        final List<MockInterviewQuestionResponse> questions = session.getQuestions() == null
+                ? List.of()
+                : session.getQuestions().stream().map(this::toQuestionResponse).toList();
+
         return MockInterviewHistoryItemResponse.builder()
                 .sessionId(session.getSessionId())
                 .interviewType(session.getInterviewType())
                 .completedAt(session.getCompletedAt())
                 .overallScore(session.getOverallScore())
                 .questionCount(session.getQuestionCount())
+                .questions(questions)
+                .build();
+    }
+
+    /**
+     * Maps a generated question to the public response DTO.
+     */
+    private MockInterviewQuestionResponse toQuestionResponse(
+            final InterviewQuestion question) {
+        return MockInterviewQuestionResponse.builder()
+                .id(question.id())
+                .question(question.question())
+                .hint(question.hint())
+                .build();
+    }
+
+    /**
+     * Maps a snapshotted session question to the public response DTO.
+     */
+    private MockInterviewQuestionResponse toQuestionResponse(
+            final InterviewSessionQuestion question) {
+        return MockInterviewQuestionResponse.builder()
+                .id(question.getQuestionId())
+                .question(question.getQuestion())
+                .hint(null)
                 .build();
     }
 

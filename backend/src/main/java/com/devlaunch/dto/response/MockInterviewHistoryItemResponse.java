@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Response DTO for a single historical interview session.
@@ -50,5 +51,12 @@ public class MockInterviewHistoryItemResponse {
      * The number of questions answered in the session.
      */
     private Integer questionCount;
+
+    /**
+     * The exact questions presented in the session, in the order they
+     * were answered, snapshotted so they remain unchanged even if the
+     * question bank is later edited.
+     */
+    private List<MockInterviewQuestionResponse> questions;
 
 }

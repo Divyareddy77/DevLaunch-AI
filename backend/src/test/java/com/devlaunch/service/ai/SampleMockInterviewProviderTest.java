@@ -1,6 +1,7 @@
 package com.devlaunch.service.ai;
 
 import com.devlaunch.entity.enums.InterviewType;
+import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,6 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for the deterministic sample interview scoring.
@@ -25,7 +27,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SampleMockInterviewProviderTest {
 
-    private final SampleMockInterviewProvider provider = new SampleMockInterviewProvider();
+    private final SampleMockInterviewProvider provider =
+            new SampleMockInterviewProvider(mock(InterviewQuestionBankService.class));
+
+    /** The generic answer reused across the question-relevance tests. */
+    private static final String PROPS_STATE_ANSWER =
+            "React state stores component data. Props pass data from parent to child.";
+
+    private static final String PROPS_STATE_QUESTION =
+            "Explain the difference between props and state in React.";
+
+    private static final String HOOKS_QUESTION =
+            "What are React hooks? Explain useState and useEffect.";
+
+    private static final String VIRTUAL_DOM_QUESTION =
+            "Explain the concept of the virtual DOM and reconciliation.";
+
+    private static final String CONTROLLED_QUESTION =
+            "What is the difference between controlled and uncontrolled components?";
+
+    private static final String PERFORMANCE_QUESTION =
+            "How does React handle performance optimisation?";
 
     /**
      * Scores a single Java answer through the public evaluation entry point.
@@ -216,5 +238,73 @@ class SampleMockInterviewProviderTest {
         assertTrue(feedback.areasForImprovement().stream()
                         .anyMatch(area -> area.contains("did not address")),
                 "expected an off-topic area for improvement but was: " + feedback.areasForImprovement());
+    }
+
+    @Test
+    @DisplayName("a props/state answer scores high only for the props/state question")
+    void propsStateAnswerScoresHighForItsOwnQuestion() {
+        final int score = score(InterviewType.REACT, PROPS_STATE_QUESTION, PROPS_STATE_ANSWER);
+        assertTrue(score >= 70 && score <= 100, "expected 70-100 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a props/state answer scores below 20 for the hooks question")
+    void propsStateAnswerScoresLowForHooksQuestion() {
+        final int score = score(InterviewType.REACT, HOOKS_QUESTION, PROPS_STATE_ANSWER);
+        assertTrue(score >= 10 && score < 20, "expected 10-19 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a props/state answer scores below 20 for the virtual DOM question")
+    void propsStateAnswerScoresLowForVirtualDomQuestion() {
+        final int score = score(InterviewType.REACT, VIRTUAL_DOM_QUESTION, PROPS_STATE_ANSWER);
+        assertTrue(score >= 10 && score < 20, "expected 10-19 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a props/state answer scores below 20 for the controlled components question")
+    void propsStateAnswerScoresLowForControlledQuestion() {
+        final int score = score(InterviewType.REACT, CONTROLLED_QUESTION, PROPS_STATE_ANSWER);
+        assertTrue(score >= 10 && score < 20, "expected 10-19 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a props/state answer scores below 20 for the performance question")
+    void propsStateAnswerScoresLowForPerformanceQuestion() {
+        final int score = score(InterviewType.REACT, PERFORMANCE_QUESTION, PROPS_STATE_ANSWER);
+        assertTrue(score >= 10 && score < 20, "expected 10-19 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a proper hooks answer to the hooks question scores high")
+    void hooksAnswerScoresHighForHooksQuestion() {
+        final int score = score(InterviewType.REACT, HOOKS_QUESTION,
+                "React hooks are functions that let function components use state and "
+                        + "lifecycle features. useState returns the current state and an "
+                        + "updater, while useEffect runs side effects after render and "
+                        + "re-runs when the dependency array changes.");
+        assertTrue(score >= 60 && score <= 100, "expected 60-100 but was " + score);
+    }
+
+    @Test
+    @DisplayName("a virtual DOM answer to the virtual DOM question scores high")
+    void virtualDomAnswerScoresHighForVirtualDomQuestion() {
+        final int score = score(InterviewType.REACT, VIRTUAL_DOM_QUESTION,
+                "React keeps a virtual DOM tree in memory and uses a diffing algorithm "
+                        + "during reconciliation to compare it with the previous tree, so it "
+                        + "can render only the changed nodes to the real DOM.");
+        assertTrue(score >= 60 && score <= 100, "expected 60-100 but was " + score);
+    }
+
+    @Test
+    @DisplayName("an answer reusing category terms on an unrelated question gets off-topic feedback")
+    void offQuestionAnswerFeedbackMentionsQuestion() {
+        final MockInterviewFeedback feedback = provider.evaluate(
+                InterviewType.REACT,
+                List.of(new InterviewAnswer("react-2", HOOKS_QUESTION, PROPS_STATE_ANSWER)));
+
+        final String text = feedback.feedback().get(0).feedback();
+        assertTrue(text.contains("does not address the interview question"),
+                "expected relevance feedback but was: " + text);
     }
 }
