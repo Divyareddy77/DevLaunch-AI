@@ -13,7 +13,9 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resumeService } from '../../services/resume.service';
+import { useResumeDownload } from '../../hooks/useResumeDownload';
 import { ResumeCard } from '../../components/resume/ResumeCard';
+import { ResumeTemplatePickerModal } from '../../components/resume/ResumeTemplatePickerModal';
 import { Button } from '../../components/ui/Button';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
@@ -29,6 +31,8 @@ export const ResumePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadTarget, setDownloadTarget] = useState<number | null>(null);
+  const { download: handleDownload, isDownloading } = useResumeDownload();
 
   const fetchResumes = useCallback(async () => {
     setIsLoading(true);
@@ -140,9 +144,25 @@ export const ResumePage: React.FC = () => {
             onEdit={(id) => navigate(ROUTES.RESUME_EDIT(id))}
             onDelete={(id) => setDeleteTarget(id)}
             onView={(id) => navigate(ROUTES.RESUME_EDIT(id))}
+            onDownload={(id) => setDownloadTarget(id)}
           />
         ))}
       </div>
+
+      {/* PDF template picker modal */}
+      <ResumeTemplatePickerModal
+        isOpen={downloadTarget !== null}
+        onClose={() => setDownloadTarget(null)}
+        resumeName={
+          resumes.find((r) => r.id === downloadTarget)?.headline ?? ''
+        }
+        isDownloading={isDownloading}
+        onDownload={async (template) => {
+          if (downloadTarget === null) return;
+          const success = await handleDownload(downloadTarget, template);
+          if (success) setDownloadTarget(null);
+        }}
+      />
 
       {/* Delete confirmation modal */}
       <Modal

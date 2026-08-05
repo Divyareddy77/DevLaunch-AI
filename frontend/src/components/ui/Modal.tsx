@@ -33,6 +33,10 @@ export const Modal: React.FC<ModalProps> = ({
   className = '',
   closeOnBackdrop = true,
 }) => {
+  // When the caller supplies its own width class, honour it instead of
+  // the default max-w-md (used by the resume template picker).
+  const hasWidthClass = className.includes('max-w-');
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -68,7 +72,7 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Content panel */}
       <div
-        className={`relative z-10 w-full max-w-md rounded-xl bg-white shadow-xl ${className}`}
+        className={`relative z-10 w-full rounded-xl bg-white shadow-xl ${hasWidthClass ? '' : 'max-w-md'} ${className}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">

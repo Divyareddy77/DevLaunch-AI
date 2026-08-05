@@ -8,7 +8,14 @@
  */
 
 import React from 'react';
-import { FileText, Edit3, Trash2, ExternalLink, Calendar } from 'lucide-react';
+import {
+  FileText,
+  Edit3,
+  Trash2,
+  ExternalLink,
+  Calendar,
+  Download,
+} from 'lucide-react';
 import { Card } from '../ui/Card';
 import type { ResumeResponse } from '../../types/resume';
 
@@ -21,6 +28,8 @@ interface ResumeCardProps {
   onDelete: (id: number) => void;
   /** Callback when the view button is clicked. */
   onView: (id: number) => void;
+  /** Callback when the download button is clicked (opens the template picker). */
+  onDownload: (id: number) => void;
 }
 
 export const ResumeCard: React.FC<ResumeCardProps> = ({
@@ -28,6 +37,7 @@ export const ResumeCard: React.FC<ResumeCardProps> = ({
   onEdit,
   onDelete,
   onView,
+  onDownload,
 }) => {
   return (
     <Card className="group transition-all hover:shadow-md hover:border-primary-200" padded={false}>
@@ -110,6 +120,14 @@ export const ResumeCard: React.FC<ResumeCardProps> = ({
           View Details
         </button>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => onDownload(resume.id)}
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+            aria-label="Choose template and download resume as PDF"
+            title="Choose template and download resume as PDF"
+          >
+            <Download className="h-4 w-4" />
+          </button>
           <button
             onClick={() => onEdit(resume.id)}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
