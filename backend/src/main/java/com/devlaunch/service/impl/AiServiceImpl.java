@@ -278,30 +278,45 @@ public class AiServiceImpl implements AiService {
 
     /**
      * Generates interview questions using the preferred configured
-     * provider, falling back to the database-backed question bank when
-     * the primary is not configured, throws, or returns no questions.
+     * provider, falling back to the deterministic provider (which reads
+     * the database-backed question bank) when the primary LLM provider is
+     * configured but throws or returns no questions. When the LLM provider
+     * is not configured, the deterministic provider is used directly so its
+     * errors — such as an empty question bank — surface immediately instead
+     * of being swallowed by a pointless second invocation.
      *
      * @param type the interview category to generate questions for
      * @return the generated questions
      */
     private List<InterviewQuestion> generateQuestions(final InterviewType type) {
-        final MockInterviewProvider primary =
-                openAiMockInterviewProvider.isConfigured()
-                        ? openAiMockInterviewProvider
-                        : sampleMockInterviewProvider;
-
-        try {
-            final List<InterviewQuestion> questions = primary.generateQuestions(type);
-            if (questions.isEmpty()) {
-                throw new IllegalStateException("Provider returned no questions");
+        if (openAiMockInterviewProvider.isConfigured()) {
+            try {
+                return generateFrom(openAiMockInterviewProvider, type);
+            } catch (final RuntimeException e) {
+                log.warn("OpenAI mock interview provider failed to generate questions, "
+                                + "falling back to the question bank: {}",
+                        e.getMessage());
             }
-            return questions;
-        } catch (final Exception e) {
-            log.warn("Mock interview provider '{}' failed to generate questions, "
-                            + "falling back to the question bank: {}",
-                    primary.getClass().getSimpleName(), e.getMessage());
-            return sampleMockInterviewProvider.generateQuestions(type);
         }
+        return generateFrom(sampleMockInterviewProvider, type);
+    }
+
+    /**
+     * Invokes a provider's question generation and guards against an empty
+     * result.
+     *
+     * @param provider the provider to invoke
+     * @param type     the interview category to generate questions for
+     * @return the generated questions
+     * @throws IllegalStateException if the provider returns no questions
+     */
+    private List<InterviewQuestion> generateFrom(final MockInterviewProvider provider,
+                                                 final InterviewType type) {
+        final List<InterviewQuestion> questions = provider.generateQuestions(type);
+        if (questions.isEmpty()) {
+            throw new IllegalStateException("Provider returned no questions");
+        }
+        return questions;
     }
 
     /**
