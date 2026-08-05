@@ -9,6 +9,7 @@
  * @author DevLaunch
  */
 
+import axios from 'axios';
 import apiClient from '../api/client';
 import { RESUMES, RESUME_SUB_RESOURCES } from '../api/endpoints';
 import type {
@@ -34,6 +35,7 @@ import type {
   CreateProjectRequest,
   UpdateProjectRequest,
   ResumeTemplateResponse,
+  ResumePdfTemplateValue,
 } from '../types/resume';
 
 export const resumeService = {
@@ -288,4 +290,102 @@ export const resumeService = {
     apiClient
       .delete<string>(RESUME_SUB_RESOURCES.PROJECT_BY_ID(resumeId, projectId))
       .then((r) => r.data),
+
+  // ──────── PDF Download ────────
+
+  /**
+   * GET /api/resumes/{id}/pdf?template=... — Download the resume as a PDF
+   * file rendered with the given layout template.
+   *
+   * Fetches the generated PDF as a blob, uses the backend-provided file
+   * name (e.g. Divya_Resume.pdf), and triggers a browser download. When
+   * the backend rejects the request its error body is a blob containing
+   * the JSON error payload, which is parsed and rethrown as an Error so
+   * callers can surface a user-friendly message.
+   */
+  downloadPdf: async (
+    id: number,
+    template: ResumePdfTemplateValue,
+  ): Promise<void> => {
+    try {
+      const response = await apiClient.get<Blob>(RESUMES.PDF(id), {
+        params: { template },
+        responseType: 'blob',
+      });
+      triggerBlobDownload(
+        response.data,
+        getFileNameFromDisposition(response.headers['content-disposition']),
+      );
+    } catch (err: unknown) {
+      const message = await extractBlobErrorMessage(err);
+      if (message) {
+        throw new Error(message);
+      }
+      throw err;
+    }
+  },
 };
+
+const DEFAULT_PDF_FILE_NAME = 'resume.pdf';
+
+/**
+ * Extracts the file name from a Content-Disposition header.
+ *
+ * Supports both the plain/quoted form (filename="Divya_Resume.pdf")
+ * and the RFC 5987 encoded form (filename*=UTF-8''...).
+ *
+ * @param disposition the raw Content-Disposition header value, if present
+ * @returns the suggested download file name, falling back to resume.pdf
+ */
+function getFileNameFromDisposition(disposition: unknown): string {
+  if (typeof disposition !== 'string') return DEFAULT_PDF_FILE_NAME;
+
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      return encoded[1].trim();
+    }
+  }
+
+  const plain = disposition.match(/filename="?([^";]+)"?/i);
+  return plain?.[1]?.trim() || DEFAULT_PDF_FILE_NAME;
+}
+
+/**
+ * Triggers a browser download for the given blob.
+ *
+ * @param blob     the file content
+ * @param fileName the name to save the file as
+ */
+function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Extracts the backend error message from an Axios error whose response
+ * body is a blob (the case for blob responses), or null when unavailable.
+ *
+ * @param err the thrown error
+ * @returns the backend ErrorResponse.message, or null
+ */
+async function extractBlobErrorMessage(err: unknown): Promise<string | null> {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data;
+  if (!(data instanceof Blob)) return null;
+  try {
+    const text = await data.text();
+    const parsed = JSON.parse(text) as { message?: string };
+    return parsed.message ?? null;
+  } catch {
+    return null;
+  }
+}

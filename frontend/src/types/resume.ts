@@ -53,6 +53,18 @@ export interface ResumeTemplateResponse {
 }
 
 // ────────────────────────────────────────────────────
+// PDF Layout Template
+// ────────────────────────────────────────────────────
+
+/** PDF layout templates available when downloading a resume as a PDF. */
+export type ResumePdfTemplateValue =
+  | 'CLASSIC_PROFESSIONAL'
+  | 'MODERN_BLUE'
+  | 'MINIMAL'
+  | 'EXECUTIVE'
+  | 'CREATIVE';
+
+// ────────────────────────────────────────────────────
 // Education
 // ────────────────────────────────────────────────────
 
