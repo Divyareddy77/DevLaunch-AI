@@ -33,10 +33,15 @@ export const ROUTES = {
   MOCK_INTERVIEW: '/ai/mock-interview',
   RESUME_REVIEW: '/ai/resume-review',
 
-  // Admin routes (future)
+  // Admin routes (ROLE_ADMIN only)
+  ADMIN: '/admin',
   ADMIN_USERS: '/admin/users',
-  ADMIN_REPORTS: '/admin/reports',
+  ADMIN_RESUMES: '/admin/resumes',
+  ADMIN_JOB_APPLICATIONS: '/admin/job-applications',
+  ADMIN_STUDY_PLANS: '/admin/study-plans',
+  ADMIN_REPORTS: '/admin/ai',
   ADMIN_ANNOUNCEMENTS: '/admin/announcements',
+  ADMIN_FEEDBACK: '/admin/feedback',
 
   // Fallback
   NOT_FOUND: '/404',

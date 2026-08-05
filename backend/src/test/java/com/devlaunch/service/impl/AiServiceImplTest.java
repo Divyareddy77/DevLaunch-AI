@@ -2,16 +2,29 @@ package com.devlaunch.service.impl;
 
 import com.devlaunch.dto.request.MockInterviewAnswerRequest;
 import com.devlaunch.dto.request.MockInterviewSubmitRequest;
+import com.devlaunch.dto.request.ResumeReviewRequest;
 import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.InterviewSessionQuestion;
+import com.devlaunch.entity.Resume;
+import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.InterviewType;
+import com.devlaunch.repository.AchievementRepository;
+import com.devlaunch.repository.CertificationRepository;
+import com.devlaunch.repository.EducationRepository;
+import com.devlaunch.repository.ExperienceRepository;
 import com.devlaunch.repository.InterviewSessionRepository;
+import com.devlaunch.repository.ProjectRepository;
+import com.devlaunch.repository.ResumeRepository;
+import com.devlaunch.repository.ResumeReviewRepository;
+import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.ai.MockInterviewFeedback;
 import com.devlaunch.service.ai.MockInterviewProvider;
+import com.devlaunch.service.ai.ResumeReviewAnalysis;
+import com.devlaunch.service.ai.ResumeReviewProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -57,6 +71,36 @@ class AiServiceImplTest {
     private InterviewSessionRepository interviewSessionRepository;
 
     @Mock
+    private ResumeReviewRepository resumeReviewRepository;
+
+    @Mock
+    private ResumeRepository resumeRepository;
+
+    @Mock
+    private EducationRepository educationRepository;
+
+    @Mock
+    private ExperienceRepository experienceRepository;
+
+    @Mock
+    private SkillRepository skillRepository;
+
+    @Mock
+    private ProjectRepository projectRepository;
+
+    @Mock
+    private CertificationRepository certificationRepository;
+
+    @Mock
+    private AchievementRepository achievementRepository;
+
+    @Mock
+    private ResumeReviewProvider openAiResumeReviewProvider;
+
+    @Mock
+    private ResumeReviewProvider sampleResumeReviewProvider;
+
+    @Mock
     private MockInterviewProvider sampleMockInterviewProvider;
 
     @Mock
@@ -66,11 +110,11 @@ class AiServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        // Only the mock-interview dependencies are exercised by these tests;
-        // the resume-review dependencies are not needed.
         service = new AiServiceImpl(
-                null, userRepository, null, null, null, null, null, null,
-                interviewSessionRepository, null, null,
+                resumeRepository, userRepository, educationRepository, experienceRepository,
+                skillRepository, projectRepository, certificationRepository, achievementRepository,
+                interviewSessionRepository, resumeReviewRepository,
+                openAiResumeReviewProvider, sampleResumeReviewProvider,
                 openAiMockInterviewProvider, sampleMockInterviewProvider);
     }
 
@@ -175,6 +219,51 @@ class AiServiceImplTest {
         assertEquals("101", item.getQuestions().get(0).getId());
         assertEquals("What are React hooks?", item.getQuestions().get(0).getQuestion());
         assertEquals("Explain the virtual DOM.", item.getQuestions().get(1).getQuestion());
+    }
+
+    @Test
+    @DisplayName("reviewing a resume persists a summary record for the admin module")
+    void reviewPersistsResumeReviewHistory() {
+        authenticate();
+        final User user = user();
+        final Resume resume = Resume.builder()
+                .headline("Senior Developer")
+                .summary("Experienced full-stack developer.")
+                .user(user)
+                .build();
+        resume.setId(10L);
+
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+        when(resumeRepository.findById(10L)).thenReturn(Optional.of(resume));
+        when(educationRepository.findByResume(resume)).thenReturn(List.of());
+        when(experienceRepository.findByResume(resume)).thenReturn(List.of());
+        when(skillRepository.findByResume(resume)).thenReturn(List.of());
+        when(projectRepository.findByResume(resume)).thenReturn(List.of());
+        when(certificationRepository.findByResume(resume)).thenReturn(List.of());
+        when(achievementRepository.findByResume(resume)).thenReturn(List.of());
+        when(sampleResumeReviewProvider.analyze(any(), eq("Java Developer")))
+                .thenReturn(new ResumeReviewAnalysis(
+                        78, 65,
+                        List.of("Good structure"),
+                        List.of("Weak summary"),
+                        List.of("AWS"),
+                        List.of()));
+
+        service.reviewResume(ResumeReviewRequest.builder()
+                .resumeId(10L)
+                .targetRole("Java Developer")
+                .build());
+
+        final ArgumentCaptor<ResumeReview> captor =
+                ArgumentCaptor.forClass(ResumeReview.class);
+        verify(resumeReviewRepository).save(captor.capture());
+
+        final ResumeReview saved = captor.getValue();
+        assertEquals(78, saved.getResumeScore());
+        assertEquals(65, saved.getAtsScore());
+        assertEquals("Java Developer", saved.getTargetRole());
+        assertEquals(user, saved.getUser());
+        assertEquals(resume, saved.getResume());
     }
 
 }

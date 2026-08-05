@@ -92,3 +92,70 @@ export const AI = {
   /** POST — Submit a resume for AI-powered review. */
   REVIEW_RESUME: '/api/ai/resume-review',
 } as const;
+
+/**
+ * Admin module endpoint constants.
+ *
+ * Every endpoint is protected by the ROLE_ADMIN authority on the backend;
+ * normal users receive 403 Forbidden.
+ *
+ * @see backend/src/main/java/com/devlaunch/controller/AdminController.java
+ */
+export const ADMIN = {
+  /** GET — Platform-wide statistics and recent activity. */
+  DASHBOARD: '/api/admin/dashboard',
+  /** GET — Paged, searchable, filterable user list. */
+  USERS: '/api/admin/users',
+  /** GET — Single user details. */
+  USER_BY_ID: (id: number) => `/api/admin/users/${id}`,
+  /** PUT — Activate/deactivate a user (?active=true|false). */
+  USER_STATUS: (id: number) => `/api/admin/users/${id}/status`,
+  /** GET/POST — Resume management. */
+  RESUMES: '/api/admin/resumes',
+  /** GET/DELETE — Single resume. */
+  RESUME_BY_ID: (id: number) => `/api/admin/resumes/${id}`,
+  /** GET — Paged job application list. */
+  JOB_APPLICATIONS: '/api/admin/job-applications',
+  /** GET — Job applications per status. */
+  JOB_APPLICATION_STATS: '/api/admin/job-applications/stats',
+  /** DELETE — Single job application. */
+  JOB_APPLICATION_BY_ID: (id: number) => `/api/admin/job-applications/${id}`,
+  /** GET — Paged study plan list. */
+  STUDY_PLANS: '/api/admin/study-plans',
+  /** DELETE — Single study plan. */
+  STUDY_PLAN_BY_ID: (id: number) => `/api/admin/study-plans/${id}`,
+  /** GET — Paged AI resume review history. */
+  AI_RESUME_REVIEWS: '/api/admin/ai/resume-reviews',
+  /** GET — Paged mock interview history. */
+  AI_INTERVIEWS: '/api/admin/ai/interviews',
+  /** DELETE — Single interview session. */
+  AI_INTERVIEW_BY_ID: (id: number) => `/api/admin/ai/interviews/${id}`,
+  /** GET/POST — Announcements. */
+  ANNOUNCEMENTS: '/api/admin/announcements',
+  /** PUT/DELETE — Single announcement. */
+  ANNOUNCEMENT_BY_ID: (id: number) => `/api/admin/announcements/${id}`,
+  /** GET — Paged feedback list. */
+  FEEDBACK: '/api/admin/feedback',
+  /** DELETE — Single feedback entry. */
+  FEEDBACK_BY_ID: (id: number) => `/api/admin/feedback/${id}`,
+} as const;
+
+/**
+ * Public feedback submission endpoint (any authenticated user).
+ *
+ * @see backend/src/main/java/com/devlaunch/controller/FeedbackController.java
+ */
+export const FEEDBACK = {
+  /** POST — Submit platform feedback. */
+  SUBMIT: '/api/feedback',
+} as const;
+
+/**
+ * User-facing announcement endpoints (any authenticated user).
+ *
+ * @see backend/src/main/java/com/devlaunch/controller/AnnouncementController.java
+ */
+export const ANNOUNCEMENTS = {
+  /** GET — Active announcements, newest first. */
+  ACTIVE: '/api/announcements/active',
+} as const;

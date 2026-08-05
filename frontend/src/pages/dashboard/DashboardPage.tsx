@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { dashboardService } from '../../services/dashboard.service';
+import { announcementService } from '../../services/announcement.service';
+import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
 import { DashboardCard } from '../../components/dashboard/DashboardCard';
 import { JobApplicationCard } from '../../components/dashboard/JobApplicationCard';
 import { StudyPlannerCard } from '../../components/dashboard/StudyPlannerCard';
@@ -29,6 +31,7 @@ import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
 import { ROUTES } from '../../constants/routes';
 import type { DashboardResponse } from '../../types/dashboard';
+import type { Announcement } from '../../types/announcement';
 
 /** Mapping from score to display colour for the placement readiness ring. */
 function scoreColor(score: number): string {
@@ -101,6 +104,19 @@ export const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Active announcements shown above the dashboard cards. Fetched alongside
+  // the dashboard but failures never block the dashboard itself.
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    announcementService
+      .getActive()
+      .then(setAnnouncements)
+      .catch(() => {
+        // Announcements are supplementary — ignore failures silently.
+      });
+  }, []);
+
   const fetchDashboard = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -156,6 +172,9 @@ export const DashboardPage: React.FC = () => {
           Here&apos;s an overview of your career preparation progress.
         </p>
       </div>
+
+      {/* ---- Announcements (active, newest first) ---- */}
+      <AnnouncementBanner announcements={announcements} />
 
       {/* ---- Hero: Placement Readiness ---- */}
       <div className="mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

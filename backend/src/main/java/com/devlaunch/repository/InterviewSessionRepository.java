@@ -30,4 +30,12 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
      */
     List<InterviewSession> findByUserOrderByCompletedAtDesc(User user);
 
+    /**
+     * Finds the ten most recently completed interview sessions across
+     * all users, used for the admin dashboard's recent interviews feed.
+     *
+     * @return a list of up to ten interview sessions, newest first
+     */
+    List<InterviewSession> findTop10ByOrderByCompletedAtDesc();
+
 }

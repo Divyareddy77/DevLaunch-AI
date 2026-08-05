@@ -20,4 +20,7 @@ export const STORAGE_KEYS = {
 
   /** Previously selected resume ID (for quick navigation). */
   LAST_RESUME_ID: 'devlaunch_last_resume_id',
+
+  /** Announcement IDs the user has dismissed (hidden on reload). */
+  DISMISSED_ANNOUNCEMENTS: 'devlaunch_dismissed_announcements',
 } as const;
