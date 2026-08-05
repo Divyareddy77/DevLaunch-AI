@@ -12,9 +12,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { userService } from '../../services/user.service';
+import { feedbackService } from '../../services/feedback.service';
 import { ProfileCard } from '../../components/profile/ProfileCard';
 import { ProfileForm } from '../../components/profile/ProfileForm';
 import { ChangePasswordForm, type ChangePasswordFormValues } from '../../components/profile/ChangePasswordForm';
+import { FeedbackForm } from '../../components/admin/FeedbackForm';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
 import { getErrorMessage } from '../../utils/error';
@@ -27,6 +29,7 @@ export const ProfilePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
@@ -58,6 +61,22 @@ export const ProfilePage: React.FC = () => {
       toast.error(getErrorMessage(err, MESSAGES.PROFILE_UPDATE_ERROR));
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  /** POST /api/feedback — submit platform feedback. */
+  const handleSendFeedback = async (message: string): Promise<boolean> => {
+    setIsSendingFeedback(true);
+
+    try {
+      await feedbackService.submit({ message });
+      toast.success(MESSAGES.FEEDBACK_SUBMITTED);
+      return true;
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, MESSAGES.FEEDBACK_SUBMIT_ERROR));
+      return false;
+    } finally {
+      setIsSendingFeedback(false);
     }
   };
 
@@ -116,6 +135,10 @@ export const ProfilePage: React.FC = () => {
           <ChangePasswordForm
             isSubmitting={isChangingPassword}
             onSubmit={handleChangePassword}
+          />
+          <FeedbackForm
+            isSubmitting={isSendingFeedback}
+            onSubmit={handleSendFeedback}
           />
         </div>
       </div>

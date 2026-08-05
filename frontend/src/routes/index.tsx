@@ -13,6 +13,7 @@ import { ROUTES } from '../constants/routes';
 import { AuthLayout } from '../layouts/AuthLayout';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { ProtectedRoute } from '../components/shared/ProtectedRoute';
+import { AdminRoute } from '../components/shared/AdminRoute';
 import { PublicOnlyRoute } from '../components/shared/PublicOnlyRoute';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
@@ -31,6 +32,14 @@ import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ResumeReviewPage } from '../pages/ai/ResumeReviewPage';
 import { MockInterviewPage } from '../pages/ai/MockInterviewPage';
+import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
+import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
+import { AdminResumesPage } from '../pages/admin/AdminResumesPage';
+import { AdminJobApplicationsPage } from '../pages/admin/AdminJobApplicationsPage';
+import { AdminStudyPlannersPage } from '../pages/admin/AdminStudyPlannersPage';
+import { AdminAiPage } from '../pages/admin/AdminAiPage';
+import { AdminAnnouncementsPage } from '../pages/admin/AdminAnnouncementsPage';
+import { AdminFeedbackPage } from '../pages/admin/AdminFeedbackPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const routes: RouteObject[] = [
@@ -145,9 +154,50 @@ export const routes: RouteObject[] = [
             path: ROUTES.MOCK_INTERVIEW,
             element: <MockInterviewPage />,
           },
+        ],
+      },
 
-          // Future module routes will be added here:
-          // Admin
+      // ---- Admin (ROLE_ADMIN only) ----
+      {
+        element: <AdminRoute />,
+        children: [
+          {
+            element: <DashboardLayout />,
+            children: [
+              {
+                path: ROUTES.ADMIN,
+                element: <AdminDashboardPage />,
+              },
+              {
+                path: ROUTES.ADMIN_USERS,
+                element: <AdminUsersPage />,
+              },
+              {
+                path: ROUTES.ADMIN_RESUMES,
+                element: <AdminResumesPage />,
+              },
+              {
+                path: ROUTES.ADMIN_JOB_APPLICATIONS,
+                element: <AdminJobApplicationsPage />,
+              },
+              {
+                path: ROUTES.ADMIN_STUDY_PLANS,
+                element: <AdminStudyPlannersPage />,
+              },
+              {
+                path: ROUTES.ADMIN_REPORTS,
+                element: <AdminAiPage />,
+              },
+              {
+                path: ROUTES.ADMIN_ANNOUNCEMENTS,
+                element: <AdminAnnouncementsPage />,
+              },
+              {
+                path: ROUTES.ADMIN_FEEDBACK,
+                element: <AdminFeedbackPage />,
+              },
+            ],
+          },
         ],
       },
     ],

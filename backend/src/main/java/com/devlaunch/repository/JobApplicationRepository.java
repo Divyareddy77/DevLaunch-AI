@@ -1,6 +1,7 @@
 package com.devlaunch.repository;
 
 import com.devlaunch.entity.JobApplication;
+import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -28,5 +29,18 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
      *         or an empty list if none exist
      */
     List<JobApplication> findByUser(User user);
+
+    /**
+     * Finds all job applications linked to the specified resume.
+     * <p>
+     * Used by the admin module to detach applications before a resume
+     * is deleted, keeping the foreign key constraint satisfied.
+     * </p>
+     *
+     * @param resume the resume whose linked applications to retrieve
+     * @return a list of job applications linked to the resume,
+     *         or an empty list if none exist
+     */
+    List<JobApplication> findByResume(Resume resume);
 
 }

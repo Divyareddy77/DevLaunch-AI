@@ -22,6 +22,10 @@ import {
   Bot,
   FileSearch,
   User,
+  Users,
+  Activity,
+  Megaphone,
+  MessageSquare,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
@@ -53,9 +57,14 @@ export const NAV_ITEMS: NavItem[] = [
 
 /** Admin-only navigation items appended for users with the ADMIN role. */
 export const ADMIN_NAV_ITEMS: NavItem[] = [
-  { label: 'User Management', path: ROUTES.ADMIN_USERS, icon: User, roles: ['ADMIN'] },
-  { label: 'Reports', path: ROUTES.ADMIN_REPORTS, icon: FileText, roles: ['ADMIN'] },
-  { label: 'Announcements', path: ROUTES.ADMIN_ANNOUNCEMENTS, icon: Bot, roles: ['ADMIN'] },
+  { label: 'Admin Dashboard', path: ROUTES.ADMIN, icon: LayoutDashboard, roles: ['ADMIN'] },
+  { label: 'User Management', path: ROUTES.ADMIN_USERS, icon: Users, roles: ['ADMIN'] },
+  { label: 'Resumes', path: ROUTES.ADMIN_RESUMES, icon: FileText, roles: ['ADMIN'] },
+  { label: 'Job Applications', path: ROUTES.ADMIN_JOB_APPLICATIONS, icon: Briefcase, roles: ['ADMIN'] },
+  { label: 'Study Plans', path: ROUTES.ADMIN_STUDY_PLANS, icon: CalendarCheck, roles: ['ADMIN'] },
+  { label: 'AI Reports', path: ROUTES.ADMIN_REPORTS, icon: Activity, roles: ['ADMIN'] },
+  { label: 'Announcements', path: ROUTES.ADMIN_ANNOUNCEMENTS, icon: Megaphone, roles: ['ADMIN'] },
+  { label: 'Feedback', path: ROUTES.ADMIN_FEEDBACK, icon: MessageSquare, roles: ['ADMIN'] },
 ];
 
 /**

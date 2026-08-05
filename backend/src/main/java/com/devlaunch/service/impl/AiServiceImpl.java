@@ -20,6 +20,7 @@ import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.InterviewSessionQuestion;
 import com.devlaunch.entity.Project;
 import com.devlaunch.entity.Resume;
+import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.InterviewType;
@@ -31,6 +32,7 @@ import com.devlaunch.repository.ExperienceRepository;
 import com.devlaunch.repository.InterviewSessionRepository;
 import com.devlaunch.repository.ProjectRepository;
 import com.devlaunch.repository.ResumeRepository;
+import com.devlaunch.repository.ResumeReviewRepository;
 import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.ai.InterviewAnswer;
@@ -88,6 +90,7 @@ public class AiServiceImpl implements AiService {
     private final CertificationRepository certificationRepository;
     private final AchievementRepository achievementRepository;
     private final InterviewSessionRepository interviewSessionRepository;
+    private final ResumeReviewRepository resumeReviewRepository;
     private final ResumeReviewProvider openAiResumeReviewProvider;
     private final ResumeReviewProvider sampleResumeReviewProvider;
     private final MockInterviewProvider openAiMockInterviewProvider;
@@ -105,6 +108,7 @@ public class AiServiceImpl implements AiService {
      * @param certificationRepository      repository for certification data access
      * @param achievementRepository        repository for achievement data access
      * @param interviewSessionRepository   repository for interview history data access
+     * @param resumeReviewRepository       repository for AI resume review history
      * @param openAiResumeReviewProvider   the primary LLM resume review provider
      * @param sampleResumeReviewProvider   the deterministic resume review fallback
      * @param openAiMockInterviewProvider  the primary LLM mock interview provider
@@ -119,6 +123,7 @@ public class AiServiceImpl implements AiService {
                          final CertificationRepository certificationRepository,
                          final AchievementRepository achievementRepository,
                          final InterviewSessionRepository interviewSessionRepository,
+                         final ResumeReviewRepository resumeReviewRepository,
                          @Qualifier("openAiResumeReviewProvider")
                          final ResumeReviewProvider openAiResumeReviewProvider,
                          @Qualifier("sampleResumeReviewProvider")
@@ -136,6 +141,7 @@ public class AiServiceImpl implements AiService {
         this.certificationRepository = certificationRepository;
         this.achievementRepository = achievementRepository;
         this.interviewSessionRepository = interviewSessionRepository;
+        this.resumeReviewRepository = resumeReviewRepository;
         this.openAiResumeReviewProvider = openAiResumeReviewProvider;
         this.sampleResumeReviewProvider = sampleResumeReviewProvider;
         this.openAiMockInterviewProvider = openAiMockInterviewProvider;
@@ -146,12 +152,22 @@ public class AiServiceImpl implements AiService {
      * {@inheritDoc}
      */
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResumeReviewResponse reviewResume(final ResumeReviewRequest request) {
         final Resume resume = getResumeOwnedByAuthenticatedUser(request.getResumeId());
 
         final ResumeContent content = buildResumeContent(resume);
         final ResumeReviewAnalysis analysis = analyze(content, request.getTargetRole());
+
+        // Persist a summary record of this review so the admin module can
+        // monitor AI resume review activity. The full analysis is not stored.
+        resumeReviewRepository.save(ResumeReview.builder()
+                .user(resume.getUser())
+                .resume(resume)
+                .targetRole(request.getTargetRole())
+                .resumeScore(analysis.resumeScore())
+                .atsScore(analysis.atsScore())
+                .build());
 
         log.info("Resume review completed for resume id={}: resumeScore={}, atsScore={}",
                 resume.getId(), analysis.resumeScore(), analysis.atsScore());

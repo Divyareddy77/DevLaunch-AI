@@ -33,6 +33,10 @@ export const MESSAGES = {
   LOAD_ERROR: (resource: string) => `Failed to load ${resource}. Please try again.`,
   SAVE_ERROR: (resource: string) => `Failed to save ${resource}. Please try again.`,
 
+  // ---- Feedback ----
+  FEEDBACK_SUBMITTED: 'Thank you! Your feedback has been sent.',
+  FEEDBACK_SUBMIT_ERROR: 'Failed to send feedback. Please try again.',
+
   // ---- AI ----
   RESUME_REVIEW_ERROR: 'Failed to review the resume. Please try again.',
   MOCK_INTERVIEW_START_ERROR: 'Failed to start the interview. Please try again.',

@@ -2,13 +2,18 @@ package com.devlaunch.config;
 
 import com.devlaunch.entity.ResumeTemplate;
 import com.devlaunch.entity.Role;
+import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.RoleType;
+import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.ResumeTemplateRepository;
 import com.devlaunch.repository.RoleRepository;
+import com.devlaunch.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 
 /**
@@ -26,20 +31,38 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class DataInitializer {
 
+    /**
+     * The email of the default administrator account created on first startup.
+     */
+    public static final String DEFAULT_ADMIN_EMAIL = "admin@devlaunch.com";
+
+    /**
+     * The password of the default administrator account created on first startup.
+     */
+    public static final String DEFAULT_ADMIN_PASSWORD = "Admin@123456";
+
     private final RoleRepository roleRepository;
     private final ResumeTemplateRepository resumeTemplateRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
 
     /**
      * Constructs a {@code DataInitializer} with the required repositories.
      *
-     * @param roleRepository         the repository for role persistence
+     * @param roleRepository           the repository for role persistence
      * @param resumeTemplateRepository the repository for resume template persistence
+     * @param userRepository           the repository for user persistence
+     * @param passwordEncoder          the encoder used to hash the admin password
      */
     public DataInitializer(final RoleRepository roleRepository,
-                           final ResumeTemplateRepository resumeTemplateRepository) {
+                           final ResumeTemplateRepository resumeTemplateRepository,
+                           final UserRepository userRepository,
+                           final PasswordEncoder passwordEncoder) {
         this.roleRepository = roleRepository;
         this.resumeTemplateRepository = resumeTemplateRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -49,6 +72,7 @@ public class DataInitializer {
      * @return a runner that inserts default roles if they do not already exist
      */
     @Bean
+    @Order(1)
     public CommandLineRunner initDefaultRoles() {
         return args -> {
 
@@ -91,6 +115,7 @@ public class DataInitializer {
      * @return a runner that inserts default templates if they do not already exist
      */
     @Bean
+    @Order(2)
     public CommandLineRunner initDefaultTemplates() {
         return args -> {
 
@@ -146,6 +171,47 @@ public class DataInitializer {
                 log.info("Inserted default template: Creative");
             }
 
+        };
+    }
+
+    /**
+     * Creates a {@link CommandLineRunner} bean that seeds a default
+     * administrator account at application startup.
+     * <p>
+     * The account is created only on the first startup when no user with the
+     * admin email exists, so the operation is idempotent. The credentials are
+     * printed to the log so the admin panel can be accessed immediately. For
+     * production deployments the password should be changed after the first
+     * login.
+     * </p>
+     *
+     * @return a runner that inserts the default admin user if it does not exist
+     */
+    @Bean
+    @Order(3)
+    public CommandLineRunner initDefaultAdmin() {
+        return args -> {
+            if (userRepository.existsByEmail(DEFAULT_ADMIN_EMAIL)) {
+                return;
+            }
+
+            final Role adminRole = roleRepository.findByRoleName(RoleType.ADMIN)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Role ADMIN not found in the system"));
+
+            final User admin = User.builder()
+                    .firstName("DevLaunch")
+                    .lastName("Admin")
+                    .email(DEFAULT_ADMIN_EMAIL)
+                    .password(passwordEncoder.encode(DEFAULT_ADMIN_PASSWORD))
+                    .phone("0000000000")
+                    .isActive(true)
+                    .role(adminRole)
+                    .build();
+            userRepository.save(admin);
+
+            log.info("Created default admin user: {} / {}",
+                    DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD);
         };
     }
 
