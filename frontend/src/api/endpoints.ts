@@ -159,3 +159,24 @@ export const ANNOUNCEMENTS = {
   /** GET — Active announcements, newest first. */
   ACTIVE: '/api/announcements/active',
 } as const;
+
+/**
+ * Notification center endpoints (any authenticated user).
+ *
+ * Every endpoint operates exclusively on the authenticated user's own
+ * notifications.
+ *
+ * @see backend/src/main/java/com/devlaunch/controller/NotificationController.java
+ */
+export const NOTIFICATIONS = {
+  /** GET — All notifications for the authenticated user, newest first. */
+  BASE: '/api/notifications',
+  /** GET — Unread notification count for the authenticated user. */
+  UNREAD_COUNT: '/api/notifications/unread-count',
+  /** PUT — Mark a single notification as read. */
+  MARK_READ: (id: number) => `/api/notifications/${id}/read`,
+  /** PUT — Mark all notifications as read. */
+  READ_ALL: '/api/notifications/read-all',
+  /** DELETE — Remove a single notification. */
+  BY_ID: (id: number) => `/api/notifications/${id}`,
+} as const;

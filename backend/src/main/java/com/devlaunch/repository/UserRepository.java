@@ -62,6 +62,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByIsActive(Boolean isActive);
 
     /**
+     * Finds all active users.
+     * <p>
+     * Used when fanning out announcements so deactivated users, who cannot
+     * log in, do not accumulate notifications they will never see.
+     * </p>
+     *
+     * @return a list of active users, or an empty list if none exist
+     */
+    List<User> findByIsActiveTrue();
+
+    /**
      * Finds the ten most recently registered users.
      *
      * @return a list of up to ten users ordered by registration time

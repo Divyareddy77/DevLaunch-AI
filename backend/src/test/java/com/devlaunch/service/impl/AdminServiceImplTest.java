@@ -17,6 +17,7 @@ import com.devlaunch.entity.StudyPlanner;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.ApplicationStatus;
 import com.devlaunch.entity.enums.InterviewType;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.RoleType;
 import com.devlaunch.entity.enums.StudyPriority;
 import com.devlaunch.entity.enums.StudyStatus;
@@ -35,6 +36,7 @@ import com.devlaunch.repository.ResumeReviewRepository;
 import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
+import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -108,6 +110,8 @@ class AdminServiceImplTest {
     private ProjectRepository projectRepository;
     @Mock
     private SkillRepository skillRepository;
+    @Mock
+    private NotificationService notificationService;
 
     private AdminServiceImpl service;
 
@@ -118,7 +122,8 @@ class AdminServiceImplTest {
                 studyPlannerRepository, interviewSessionRepository,
                 resumeReviewRepository, announcementRepository, feedbackRepository,
                 achievementRepository, certificationRepository, educationRepository,
-                experienceRepository, projectRepository, skillRepository);
+                experienceRepository, projectRepository, skillRepository,
+                notificationService);
     }
 
     @AfterEach
@@ -274,6 +279,9 @@ class AdminServiceImplTest {
         verify(userRepository).delete(jane);
         verify(jobApplicationRepository).deleteAll(List.of());
         verify(announcementRepository).deleteAll(List.of());
+        // The user's notifications are removed before the user row so the
+        // notifications.user_id foreign key stays valid.
+        verify(notificationService).deleteAllForUser(jane);
     }
 
     @Test
@@ -406,6 +414,10 @@ class AdminServiceImplTest {
         assertEquals("Welcome", response.getTitle());
         assertTrue(response.getIsActive());
         assertEquals(ADMIN_EMAIL, response.getCreatedByEmail());
+        // Published announcements fan out to every user as a notification,
+        // reusing the announcement's own title and content.
+        verify(notificationService).notifyAllUsers(NotificationType.ANNOUNCEMENT,
+                "Welcome", "New feature is live.");
     }
 
     @Test
@@ -426,6 +438,29 @@ class AdminServiceImplTest {
 
         assertEquals("New", response.getTitle());
         assertFalse(response.getIsActive());
+        // Unpublishing never fans out notifications
+        verify(notificationService, never()).notifyAllUsers(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("publishing a drafted announcement notifies all users")
+    void publishingDraftedAnnouncementNotifiesAllUsers() {
+        authenticateAsAdmin();
+        final User admin = admin();
+        final Announcement draft = Announcement.builder()
+                .title("New feature").content("We shipped new features.")
+                .isActive(false).createdBy(admin).build();
+        when(announcementRepository.findById(7L)).thenReturn(Optional.of(draft));
+        when(userRepository.findByEmail(ADMIN_EMAIL)).thenReturn(Optional.of(admin));
+        when(announcementRepository.save(draft)).thenReturn(draft);
+
+        service.updateAnnouncement(7L, AnnouncementRequest.builder()
+                .title("New feature").content("We shipped new features.")
+                .isActive(true)
+                .build());
+
+        verify(notificationService).notifyAllUsers(NotificationType.ANNOUNCEMENT,
+                "New feature", "We shipped new features.");
     }
 
     @Test
