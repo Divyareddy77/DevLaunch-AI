@@ -7,6 +7,11 @@
  * an optional floating webcam preview. Answers are pushed up to the page
  * on every change so they can be auto-saved.
  *
+ * Voice answers are recorded with MediaRecorder, uploaded to the backend
+ * for OpenAI Whisper transcription, and the resulting transcript is
+ * automatically inserted into the answer box where the user can edit it
+ * before submitting.
+ *
  * @author DevLaunch
  */
 
@@ -23,17 +28,20 @@ import {
   Square,
   Play,
   Type,
+  Loader2,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useMediaRecorder } from '../../hooks/useMediaRecorder';
 import { useWebcam } from '../../hooks/useWebcam';
 import { analyzeSpeaking } from '../../utils/speaking';
 import { wordCount } from '../../utils/interview';
 import { formatClock, enumToLabel } from '../../utils/format';
 import { SpeakingMetricsPanel } from './SpeakingMetricsPanel';
 import { WebcamOverlay } from './WebcamOverlay';
+import { aiService } from '../../services/ai.service';
+import { getErrorMessage } from '../../utils/error';
 import { MESSAGES } from '../../constants/messages';
 import type { InterviewQuestion, InterviewDifficulty } from '../../types/ai';
 
@@ -91,22 +99,27 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
   onAnswerChange,
 }) => {
   const [answer, setAnswer] = useState<string>(defaultAnswer);
-  const [manualEdit, setManualEdit] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const baselineRef = useRef<string>('');
   const autoAdvancedRef = useRef(false);
   // Guards against redundant syncs: the parent rebuilds the onAnswerChange
   // callback on every render, so the sync effect would otherwise loop.
   const lastSyncedRef = useRef<string>('');
 
-  const speech = useSpeechRecognition();
+  const recorder = useMediaRecorder();
   const webcam = useWebcam(cameraEnabled);
+  // Recording/transcription in flight: blocks navigation and timer advance
+  // so a transcript is never lost or applied to the wrong question.
+  const recorderBusy = transcribing || recorder.recording;
 
   // Reset the editable answer and recorder whenever the question changes.
   // The reset callback is stable, so it is safe to omit from the deps.
-  const resetRecorder = speech.reset;
+  const resetRecorder = recorder.reset;
   useEffect(() => {
     setAnswer(defaultAnswer);
-    setManualEdit(false);
+    setTranscribing(false);
+    setTranscriptionError(null);
     autoAdvancedRef.current = false;
     lastSyncedRef.current = '';
     resetRecorder();
@@ -131,19 +144,17 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
     return () => window.clearInterval(interval);
   }, [question.id, timed, timeLimitSeconds]);
 
-  // Auto-advance when the per-question timer expires.
+  // Auto-advance when the per-question timer expires — but never while a
+  // recording is running or a transcript is pending, so the spoken answer
+  // is captured first.
   useEffect(() => {
-    if (timed && remaining === 0 && !autoAdvancedRef.current) {
+    if (timed && remaining === 0 && !autoAdvancedRef.current && !recorderBusy) {
       autoAdvancedRef.current = true;
       onSubmit(answer);
     }
-  }, [timed, remaining, answer, onSubmit]);
+  }, [timed, remaining, answer, onSubmit, recorderBusy]);
 
-  // ---- Voice transcription sync ----
-  const liveTranscript = [speech.finalTranscript, speech.interimTranscript]
-    .filter(Boolean)
-    .join(' ');
-
+  // ---- Voice transcript sync ----
   const syncTranscript = useCallback(
     (transcript: string) => {
       const combined = baselineRef.current
@@ -161,32 +172,48 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
     [onAnswerChange],
   );
 
-  useEffect(() => {
-    if (speech.listening && !manualEdit) {
-      syncTranscript(liveTranscript);
-    }
-  }, [speech.listening, liveTranscript, manualEdit, syncTranscript]);
-
   const handleStartRecording = () => {
     baselineRef.current = answer;
     lastSyncedRef.current = answer;
-    setManualEdit(false);
-    speech.reset();
-    speech.start();
+    setTranscriptionError(null);
+    recorder.start();
   };
 
-  const handleStopRecording = () => {
-    speech.stop();
-    setManualEdit(true);
-    syncTranscript(speech.finalTranscript);
+  const handleStopRecording = async () => {
+    const result = await recorder.stop();
+    if (!result) {
+      // The recorder surfaced an error (e.g. no audio was captured).
+      return;
+    }
+    setTranscribing(true);
+    setTranscriptionError(null);
+    try {
+      const { transcript } = await aiService.transcribe(
+        result.blob,
+        result.durationSeconds,
+      );
+      const clean = transcript.trim();
+      if (clean) {
+        syncTranscript(clean);
+      } else {
+        setTranscriptionError(MESSAGES.INTERVIEW_TRANSCRIPTION_EMPTY);
+      }
+    } catch (err) {
+      setTranscriptionError(
+        getErrorMessage(err, MESSAGES.INTERVIEW_TRANSCRIPTION_ERROR),
+      );
+    } finally {
+      setTranscribing(false);
+    }
   };
 
   const speakingMetrics = analyzeSpeaking(
     answer,
-    speech.speakingSeconds,
-    speech.longPauses,
+    recorder.elapsedSeconds,
+    recorder.longPauses,
   );
-  const showMetrics = voiceMode && (speech.listening || speech.speakingSeconds > 0);
+  const showMetrics =
+    voiceMode && (recorder.recording || recorder.elapsedSeconds > 0);
 
   const words = wordCount(answer);
   const isLast = index === total - 1;
@@ -195,7 +222,6 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
   const timeUp = timed && remaining === 0;
 
   const handleAnswerEdit = (next: string) => {
-    setManualEdit(true);
     setAnswer(next);
     onAnswerChange(next);
   };
@@ -268,38 +294,56 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
           <div className="rounded-xl border border-gray-200 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                {speech.listening ? (
+                {transcribing ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {MESSAGES.INTERVIEW_TRANSCRIBING}
+                  </span>
+                ) : recorder.recording ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
                     <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                    {speech.paused ? 'Paused' : 'Recording'}
+                    {recorder.paused ? 'Paused' : 'Recording'} · {formatClock(recorder.elapsedSeconds)}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
                     <Type className="h-3 w-3" />
-                    {speech.supported ? 'Ready to record' : MESSAGES.INTERVIEW_SPEECH_UNSUPPORTED}
+                    {recorder.supported ? 'Ready to record' : MESSAGES.INTERVIEW_RECORDING_UNSUPPORTED}
+                  </span>
+                )}
+                {/* Microphone status (live while the stream is held) */}
+                {recorder.micActive && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <Mic className="h-3 w-3" />
+                    Mic on
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                {!speech.listening ? (
-                  <Button size="sm" onClick={handleStartRecording} disabled={!speech.supported}>
+                {transcribing ? (
+                  <span className="text-xs text-gray-400">Hold on…</span>
+                ) : !recorder.recording ? (
+                  <Button
+                    size="sm"
+                    onClick={handleStartRecording}
+                    disabled={!recorder.supported}
+                  >
                     <Mic className="h-3.5 w-3.5" />
                     Start Recording
                   </Button>
-                ) : speech.paused ? (
-                  <Button size="sm" onClick={speech.resume}>
+                ) : recorder.paused ? (
+                  <Button size="sm" onClick={recorder.resume}>
                     <Play className="h-3.5 w-3.5" />
                     Resume
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={speech.pause}>
+                  <Button size="sm" variant="outline" onClick={recorder.pause}>
                     <Pause className="h-3.5 w-3.5" />
                     Pause
                   </Button>
                 )}
-                {speech.listening && (
-                  <Button size="sm" variant="danger" onClick={handleStopRecording}>
+                {recorder.recording && !transcribing && (
+                  <Button size="sm" variant="danger" onClick={() => void handleStopRecording()}>
                     <Square className="h-3.5 w-3.5" />
                     Stop
                   </Button>
@@ -307,12 +351,12 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
               </div>
             </div>
 
-            {speech.error && (
+            {(recorder.error || transcriptionError) && (
               <p
                 className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700"
                 role="alert"
               >
-                {speech.error}
+                {recorder.error ?? transcriptionError}
               </p>
             )}
 
@@ -348,7 +392,7 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
             id={`answer-${question.id}`}
             rows={8}
             placeholder="Write or dictate your answer here — be specific and give concrete examples…"
-            disabled={submitting || timeUp}
+            disabled={submitting || timeUp || recorderBusy}
             value={answer}
             onChange={(event) => handleAnswerEdit(event.target.value)}
             className={`
@@ -372,6 +416,11 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
               Add a few more words — {minWords - words} to reach the recommended depth.
             </p>
           )}
+          {transcribing && (
+            <p className="mt-1.5 text-xs text-gray-400" role="status">
+              Your transcript will appear here automatically and can be edited before submitting.
+            </p>
+          )}
         </div>
 
         {/* Navigation */}
@@ -380,7 +429,7 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
             type="button"
             variant="outline"
             onClick={onBack}
-            disabled={index === 0 || submitting}
+            disabled={index === 0 || submitting || recorderBusy}
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -389,7 +438,7 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
           <Button
             type="button"
             loading={submitting}
-            disabled={!canProceed || submitting}
+            disabled={!canProceed || submitting || recorderBusy}
             onClick={() => onSubmit(answer)}
           >
             {isLast ? (
@@ -411,7 +460,7 @@ export const InterviewSessionCard: React.FC<InterviewSessionCardProps> = ({
       <WebcamOverlay
         stream={webcam.stream}
         status={webcam.status}
-        recording={speech.listening && voiceMode}
+        recording={recorder.recording && voiceMode}
         microphoneEnabled={voiceMode && microphoneEnabled}
         elapsedSeconds={elapsedSeconds}
       />

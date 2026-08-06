@@ -34,6 +34,17 @@ public final class InterviewFeedbackMetrics {
     /** Answers with fewer than this many words on average are too brief. */
     private static final int MIN_AVERAGE_WORDS = 55;
 
+    /** Filler words penalised in the communication and confidence scores. */
+    private static final Pattern FILLER_PATTERN = Pattern.compile(
+            "\\b(um+|uh+|uhm+|like|actually|basically|you know|sort of|kind of|hmm)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /** Points subtracted from communication per filler word, capped. */
+    private static final int FILLER_COMMUNICATION_PENALTY = 3;
+
+    /** Maximum total filler penalty applied to any dimension score. */
+    private static final int MAX_FILLER_PENALTY = 18;
+
     /** Per-answer scores below this flag the question's concept as missed. */
     private static final int MISSED_CONCEPT_THRESHOLD = 55;
 
@@ -123,14 +134,31 @@ public final class InterviewFeedbackMetrics {
                 .average().orElse(0.0);
         final double averageWordsPerSentence = averageWordsPerSentence(items);
         final double distinctWordRatio = distinctWordRatio(items);
+        final int fillerCount = countFillers(items);
+        final int fillerPenalty = Math.min(fillerCount * FILLER_COMMUNICATION_PENALTY,
+                MAX_FILLER_PENALTY);
 
-        final int communicationScore = clamp(
+        final int completenessScore = clamp(
                 (int) Math.round(averageWords / IDEAL_AVERAGE_WORDS * 100));
         final int clarityScore = clamp(100 - (int) Math.round(
                 Math.abs(averageWordsPerSentence - IDEAL_WORDS_PER_SENTENCE) * 2.5));
         final int vocabularyScore = clamp((int) Math.round(distinctWordRatio * 130));
+
+        // The communication score blends the communication-relevant
+        // dimensions — answer completeness, sentence clarity, vocabulary
+        // breadth — and is reduced by filler-word frequency (um, uh, like,
+        // actually, basically, you know), which signal weak delivery.
+        final int communicationScore = clamp((int) Math.round(
+                completenessScore * 0.4 + clarityScore * 0.3 + vocabularyScore * 0.3)
+                - fillerPenalty);
+
+        // The confidence estimate is derived from the answer length
+        // (speaking substance) minus filler frequency (hesitation). Long
+        // pauses and speaking duration are client-side metrics captured by
+        // the recorder and shown live; no webcam analysis is involved.
         final int confidenceScore = clamp((int) Math.round(
-                averageWords * 0.75 + Math.min(averageWords, 60) * 0.4));
+                averageWords * 0.75 + Math.min(averageWords, 60) * 0.4)
+                - fillerPenalty);
         final int professionalismScore = clamp((int) Math.round(
                 averageScore * 0.8 + Math.min(averageWords, 100) * 0.2));
 
@@ -257,6 +285,25 @@ public final class InterviewFeedbackMetrics {
             return "the question's core concepts";
         }
         return topic.toString().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Counts the filler words (um, uh, like, actually, basically, you know,
+     * sort of, kind of, hmm) across all answers.
+     *
+     * @param items the per-question evaluation items
+     * @return the total filler-word count
+     */
+    private static int countFillers(final List<MockInterviewFeedback.Item> items) {
+        int count = 0;
+        for (final MockInterviewFeedback.Item item : items) {
+            final String answer = item.answer() == null ? "" : item.answer();
+            final Matcher matcher = FILLER_PATTERN.matcher(answer);
+            while (matcher.find()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

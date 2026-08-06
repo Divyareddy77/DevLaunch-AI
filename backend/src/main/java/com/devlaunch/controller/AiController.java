@@ -8,9 +8,11 @@ import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
+import com.devlaunch.dto.response.TranscribeResponse;
 import com.devlaunch.service.interfaces.AiService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +20,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -145,6 +149,31 @@ public class AiController {
     public ResponseEntity<String> deleteMockInterview(@PathVariable final String sessionId) {
         aiService.deleteMockInterview(sessionId);
         return ResponseEntity.ok("Interview session deleted successfully.");
+    }
+
+    /**
+     * Transcribes a recorded voice answer using the configured speech-to-
+     * text provider (OpenAI Whisper).
+     * <p>
+     * Accepts the recorded audio as {@code multipart/form-data} together
+     * with an optional client-tracked recording duration, and returns the
+     * transcribed text and audio duration. The OpenAI API key is never
+     * exposed to the client — all transcription goes through this backend
+     * endpoint.
+     * </p>
+     *
+     * @param file                  the recorded audio file (multipart part "file")
+     * @param clientDurationSeconds the recording duration tracked by the
+     *                              client in seconds (optional, part "duration")
+     * @return a {@link ResponseEntity} containing the transcript and duration
+     *         with HTTP status 200 (OK)
+     */
+    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<TranscribeResponse> transcribe(
+            @RequestParam("file") final MultipartFile file,
+            @RequestParam(value = "duration", required = false) final Integer clientDurationSeconds) {
+        TranscribeResponse response = aiService.transcribe(file, clientDurationSeconds);
+        return ResponseEntity.ok(response);
     }
 
 }

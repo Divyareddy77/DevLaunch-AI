@@ -7,6 +7,7 @@ import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewCategoryResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
+import com.devlaunch.dto.response.TranscribeResponse;
 import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.InterviewSessionQuestion;
 import com.devlaunch.entity.Resume;
@@ -26,8 +27,10 @@ import com.devlaunch.repository.SkillRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.ai.MockInterviewFeedback;
 import com.devlaunch.service.ai.MockInterviewProvider;
+import com.devlaunch.service.ai.OpenAiWhisperTranscriber;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
+import com.devlaunch.service.ai.WhisperTranscription;
 import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +41,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -113,6 +117,9 @@ class AiServiceImplTest {
     private MockInterviewProvider openAiMockInterviewProvider;
 
     @Mock
+    private OpenAiWhisperTranscriber whisperTranscriber;
+
+    @Mock
     private InterviewQuestionBankService questionBankService;
 
     @Mock
@@ -128,7 +135,7 @@ class AiServiceImplTest {
                 interviewSessionRepository, resumeReviewRepository, questionBankService,
                 openAiResumeReviewProvider, sampleResumeReviewProvider,
                 openAiMockInterviewProvider, sampleMockInterviewProvider,
-                notificationService);
+                whisperTranscriber, notificationService);
     }
 
     @AfterEach
@@ -178,6 +185,21 @@ class AiServiceImplTest {
                 List.of("Deepen the virtual DOM explanation"),
                 List.of("Practice React Hooks."),
                 List.of());
+    }
+
+    @Test
+    @DisplayName("transcribing a voice answer returns the transcript and duration")
+    void transcribeReturnsTranscriptAndDuration() {
+        final MockMultipartFile audio = new MockMultipartFile(
+                "file", "answer.webm", "audio/webm", "audio data".getBytes());
+        when(whisperTranscriber.transcribe(eq(audio), eq(65)))
+                .thenReturn(new WhisperTranscription(
+                        "I led a team of five engineers.", 65.0));
+
+        final TranscribeResponse response = service.transcribe(audio, 65);
+
+        assertEquals("I led a team of five engineers.", response.getTranscript());
+        assertEquals(65.0, response.getDuration());
     }
 
     @Test

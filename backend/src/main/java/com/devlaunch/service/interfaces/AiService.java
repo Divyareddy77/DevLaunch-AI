@@ -8,7 +8,9 @@ import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
+import com.devlaunch.dto.response.TranscribeResponse;
 import com.devlaunch.exception.ResourceNotFoundException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -100,5 +102,22 @@ public interface AiService {
      *                                   not belong to the authenticated user
      */
     void deleteMockInterview(String sessionId);
+
+    /**
+     * Transcribes a recorded voice answer through the configured speech-to-
+     * text provider (OpenAI Whisper).
+     * <p>
+     * Validates the uploaded audio and delegates the transcription to the
+     * shared Whisper client so the API key never leaves the backend. Returns
+     * the transcribed text together with the audio duration used for
+     * speaking analytics.
+     * </p>
+     *
+     * @param file                  the recorded audio file
+     * @param clientDurationSeconds the recording duration tracked by the
+     *                              client, used as a fallback duration
+     * @return the transcript and audio duration
+     */
+    TranscribeResponse transcribe(MultipartFile file, Integer clientDurationSeconds);
 
 }

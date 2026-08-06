@@ -17,6 +17,7 @@ import com.devlaunch.dto.response.ProjectAnalysisResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.dto.response.ResumeReviewSuggestion;
 import com.devlaunch.dto.response.ScoreTrendPoint;
+import com.devlaunch.dto.response.TranscribeResponse;
 import com.devlaunch.dto.response.SkillsAnalysisResponse;
 import com.devlaunch.dto.response.SummaryAnalysisResponse;
 import com.devlaunch.entity.Achievement;
@@ -48,9 +49,11 @@ import com.devlaunch.service.ai.InterviewAnswer;
 import com.devlaunch.service.ai.InterviewQuestion;
 import com.devlaunch.service.ai.MockInterviewFeedback;
 import com.devlaunch.service.ai.MockInterviewProvider;
+import com.devlaunch.service.ai.OpenAiWhisperTranscriber;
 import com.devlaunch.service.ai.ResumeContent;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
+import com.devlaunch.service.ai.WhisperTranscription;
 import com.devlaunch.service.interfaces.AiService;
 import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import com.devlaunch.service.interfaces.NotificationService;
@@ -62,6 +65,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -129,6 +133,7 @@ public class AiServiceImpl implements AiService {
     private final ResumeReviewProvider sampleResumeReviewProvider;
     private final MockInterviewProvider openAiMockInterviewProvider;
     private final MockInterviewProvider sampleMockInterviewProvider;
+    private final OpenAiWhisperTranscriber whisperTranscriber;
     private final NotificationService notificationService;
 
     /**
@@ -149,6 +154,7 @@ public class AiServiceImpl implements AiService {
      * @param sampleResumeReviewProvider   the deterministic resume review fallback
      * @param openAiMockInterviewProvider  the primary LLM mock interview provider
      * @param sampleMockInterviewProvider  the deterministic mock interview fallback
+     * @param whisperTranscriber           the shared Whisper speech-to-text client
      * @param notificationService          service for creating user notifications
      */
     public AiServiceImpl(final ResumeRepository resumeRepository,
@@ -170,6 +176,7 @@ public class AiServiceImpl implements AiService {
                          final MockInterviewProvider openAiMockInterviewProvider,
                          @Qualifier("sampleMockInterviewProvider")
                          final MockInterviewProvider sampleMockInterviewProvider,
+                         final OpenAiWhisperTranscriber whisperTranscriber,
                          final NotificationService notificationService) {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
@@ -186,6 +193,7 @@ public class AiServiceImpl implements AiService {
         this.sampleResumeReviewProvider = sampleResumeReviewProvider;
         this.openAiMockInterviewProvider = openAiMockInterviewProvider;
         this.sampleMockInterviewProvider = sampleMockInterviewProvider;
+        this.whisperTranscriber = whisperTranscriber;
         this.notificationService = notificationService;
     }
 
@@ -478,6 +486,28 @@ public class AiServiceImpl implements AiService {
                         "Interview session with id " + sessionId + " not found"));
         interviewSessionRepository.delete(session);
         log.info("Mock interview session id={} deleted for user id={}", sessionId, user.getId());
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to the shared Whisper client, which validates the audio
+     * payload and surfaces friendly errors for empty or unsupported files.
+     * </p>
+     */
+    @Override
+    public TranscribeResponse transcribe(final MultipartFile file,
+                                         final Integer clientDurationSeconds) {
+        final WhisperTranscription transcription =
+                whisperTranscriber.transcribe(file, clientDurationSeconds);
+
+        log.info("Voice answer transcribed: duration={}s",
+                Math.round(transcription.duration()));
+
+        return TranscribeResponse.builder()
+                .transcript(transcription.transcript())
+                .duration(transcription.duration())
+                .build();
     }
 
     /**

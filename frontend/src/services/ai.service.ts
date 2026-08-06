@@ -19,7 +19,23 @@ import type {
   InterviewCategoryStats,
   ResumeReviewRequest,
   ResumeReviewResponse,
+  TranscribeResponse,
 } from '../types/ai';
+
+/** Derives a Whisper-friendly filename from the recorded blob's MIME type. */
+function audioFilename(blob: Blob): string {
+  const type = blob.type.toLowerCase();
+  if (type.includes('mp4')) {
+    return 'answer.mp4';
+  }
+  if (type.includes('ogg')) {
+    return 'answer.ogg';
+  }
+  if (type.includes('wav')) {
+    return 'answer.wav';
+  }
+  return 'answer.webm';
+}
 
 export const aiService = {
   /**
@@ -74,4 +90,23 @@ export const aiService = {
     apiClient
       .post<ResumeReviewResponse>(AI.REVIEW_RESUME, data)
       .then((res) => res.data),
+
+  /**
+   * Transcribes a recorded voice answer through the backend Whisper
+   * endpoint. The audio blob is uploaded as multipart form data together
+   * with the client-tracked recording duration; the OpenAI API key never
+   * leaves the server.
+   */
+  transcribe: (blob: Blob, durationSeconds: number) => {
+    const formData = new FormData();
+    formData.append('file', blob, audioFilename(blob));
+    formData.append('duration', String(Math.round(durationSeconds)));
+    return apiClient
+      .post<TranscribeResponse>(AI.TRANSCRIBE, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        // Whisper transcription of a several-minute answer can take a while.
+        timeout: 120_000,
+      })
+      .then((res) => res.data);
+  },
 };

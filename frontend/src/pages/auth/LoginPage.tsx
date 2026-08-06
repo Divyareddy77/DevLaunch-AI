@@ -99,6 +99,15 @@ export const LoginPage: React.FC = () => {
           {...register('password')}
         />
 
+        <div className="flex justify-end">
+          <Link
+            to={ROUTES.FORGOT_PASSWORD}
+            className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <Button
           type="submit"
           fullWidth

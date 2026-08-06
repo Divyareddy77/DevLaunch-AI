@@ -99,7 +99,8 @@ export const SpeakingMetricsPanel: React.FC<SpeakingMetricsPanelProps> = ({ metr
       {/* Speaking duration (full width hint) */}
       <div className="col-span-2 flex items-center gap-1.5 text-[11px] text-gray-400 sm:col-span-4">
         <Mic className="h-3 w-3" />
-        Speaking time {formatDuration(metrics.speakingSeconds)} · {metrics.wordCount} words
+        Speaking time {formatDuration(metrics.speakingSeconds)} · {metrics.wordCount} words ·{' '}
+        {metrics.sentenceCount} sentence{metrics.sentenceCount === 1 ? '' : 's'}
       </div>
     </div>
   );

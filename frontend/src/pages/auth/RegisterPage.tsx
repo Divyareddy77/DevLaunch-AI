@@ -8,7 +8,7 @@
  * @author DevLaunch
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -17,9 +17,12 @@ import { UserPlus, Mail, Lock, User, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
+import { EyeToggle } from '../../components/ui/EyeToggle';
 import { Input } from '../../components/ui/Input';
+import { PasswordStrengthMeter } from '../../components/ui/PasswordStrengthMeter';
 import { ROUTES } from '../../constants/routes';
 import { MESSAGES } from '../../constants/messages';
+import { passwordFieldSchema } from '../../utils/validation';
 
 const registerSchema = z
   .object({
@@ -33,9 +36,7 @@ const registerSchema = z
       .string()
       .min(1, MESSAGES.REQUIRED_FIELD)
       .email(MESSAGES.INVALID_EMAIL),
-    password: z
-      .string()
-      .min(8, MESSAGES.PASSWORD_MIN_LENGTH),
+    password: passwordFieldSchema(),
     confirmPassword: z
       .string()
       .min(1, MESSAGES.REQUIRED_FIELD),
@@ -57,6 +58,7 @@ export const RegisterPage: React.FC = () => {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -69,6 +71,11 @@ export const RegisterPage: React.FC = () => {
       phone: '',
     },
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const password = watch('password');
 
   const onSubmit = async (data: RegisterFormData) => {
     clearError();
@@ -134,21 +141,38 @@ export const RegisterPage: React.FC = () => {
           {...register('phone')}
         />
 
-        <Input
-          label="Password"
-          type="password"
-          placeholder="At least 8 characters"
-          leftIcon={<Lock className="h-4 w-4" />}
-          error={errors.password?.message}
-          autoComplete="new-password"
-          {...register('password')}
-        />
+        <div>
+          <Input
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="At least 8 characters"
+            leftIcon={<Lock className="h-4 w-4" />}
+            rightIcon={
+              <EyeToggle
+                visible={showPassword}
+                onToggle={() => setShowPassword((prev) => !prev)}
+                label={showPassword ? 'Hide password' : 'Show password'}
+              />
+            }
+            error={errors.password?.message}
+            autoComplete="new-password"
+            {...register('password')}
+          />
+          <PasswordStrengthMeter password={password} />
+        </div>
 
         <Input
           label="Confirm Password"
-          type="password"
+          type={showConfirmPassword ? 'text' : 'password'}
           placeholder="Repeat your password"
           leftIcon={<Lock className="h-4 w-4" />}
+          rightIcon={
+            <EyeToggle
+              visible={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword((prev) => !prev)}
+              label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+            />
+          }
           error={errors.confirmPassword?.message}
           autoComplete="new-password"
           {...register('confirmPassword')}
