@@ -1,6 +1,7 @@
 package com.devlaunch.service.impl;
 
 import com.devlaunch.entity.enums.Difficulty;
+import com.devlaunch.entity.enums.InterviewDifficulty;
 import com.devlaunch.entity.enums.InterviewType;
 import com.devlaunch.repository.InterviewQuestionRepository;
 import com.devlaunch.service.ai.InterviewQuestion;
@@ -33,17 +34,11 @@ import java.util.stream.Collectors;
 @Service
 public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankService {
 
-    /** The number of questions served in a single interview. */
-    private static final int QUESTIONS_PER_INTERVIEW = 10;
+    /** Fraction of a mixed interview reserved for easy questions. */
+    private static final double MIXED_EASY_FRACTION = 0.3;
 
-    /** Preferred number of easy questions per interview. */
-    private static final int EASY_TARGET = 3;
-
-    /** Preferred number of medium questions per interview. */
-    private static final int MEDIUM_TARGET = 4;
-
-    /** Preferred number of hard questions per interview. */
-    private static final int HARD_TARGET = 3;
+    /** Fraction of a mixed interview reserved for hard questions. */
+    private static final double MIXED_HARD_FRACTION = 0.3;
 
     private final InterviewQuestionRepository questionRepository;
 
@@ -62,15 +57,18 @@ public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankSe
      */
     @Override
     @Transactional(readOnly = true)
-    public List<InterviewQuestion> selectForInterview(final InterviewType category) {
-        validateAvailability(category);
+    public List<InterviewQuestion> selectForInterview(final InterviewType category,
+                                                      final InterviewDifficulty difficulty,
+                                                      final int count) {
+        validateAvailability(category, count);
 
+        final DifficultyTargets targets = targetsFor(difficulty, count);
         final List<com.devlaunch.entity.InterviewQuestion> selected = new ArrayList<>();
-        selected.addAll(pickRandom(category, Difficulty.EASY, EASY_TARGET));
-        selected.addAll(pickRandom(category, Difficulty.MEDIUM, MEDIUM_TARGET));
-        selected.addAll(pickRandom(category, Difficulty.HARD, HARD_TARGET));
+        selected.addAll(pickRandom(category, Difficulty.EASY, targets.easy()));
+        selected.addAll(pickRandom(category, Difficulty.MEDIUM, targets.medium()));
+        selected.addAll(pickRandom(category, Difficulty.HARD, targets.hard()));
 
-        fillRemaining(category, selected);
+        fillRemaining(category, selected, count);
 
         // Mix difficulties so the interview does not start with a single
         // difficulty block.
@@ -80,19 +78,49 @@ public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankSe
     }
 
     /**
-     * Verifies the category has enough active questions for a full
-     * interview before any selection is attempted.
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public long countActive(final InterviewType category) {
+        return questionRepository.countByCategoryAndActiveTrue(category);
+    }
+
+    /**
+     * Verifies the category has enough active questions for an interview
+     * of the requested length before any selection is attempted.
      *
      * @param category the interview category to validate
-     * @throws IllegalArgumentException if fewer than ten active questions
-     *                                  exist for the category
+     * @param count    the number of questions requested
+     * @throws IllegalArgumentException if fewer than {@code count} active
+     *                                  questions exist for the category
      */
-    private void validateAvailability(final InterviewType category) {
+    private void validateAvailability(final InterviewType category, final int count) {
         final long available = questionRepository.countByCategoryAndActiveTrue(category);
-        if (available < QUESTIONS_PER_INTERVIEW) {
+        if (available < count) {
             throw new IllegalArgumentException(
                     "Not enough interview questions available for this category.");
         }
+    }
+
+    /**
+     * Computes the per-difficulty selection targets for an interview.
+     *
+     * @param difficulty the interview difficulty mode
+     * @param count      the total number of questions requested
+     * @return the easy, medium, and hard selection targets
+     */
+    private DifficultyTargets targetsFor(final InterviewDifficulty difficulty, final int count) {
+        return switch (difficulty) {
+            case EASY -> new DifficultyTargets(count, 0, 0);
+            case MEDIUM -> new DifficultyTargets(0, count, 0);
+            case HARD -> new DifficultyTargets(0, 0, count);
+            case MIXED -> {
+                final int easy = (int) Math.round(count * MIXED_EASY_FRACTION);
+                final int hard = (int) Math.round(count * MIXED_HARD_FRACTION);
+                yield new DifficultyTargets(easy, count - easy - hard, hard);
+            }
+        };
     }
 
     /**
@@ -116,16 +144,18 @@ public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankSe
      * <p>
      * The pool is deliberately over-fetched (needed + already selected) and
      * already-selected ids are filtered out in memory, so the remaining
-     * slots are always satisfiable whenever the category holds at least ten
-     * active questions overall.
+     * slots are always satisfiable whenever the category holds at least
+     * {@code count} active questions overall.
      * </p>
      *
      * @param category the interview category to draw from
      * @param selected the questions selected so far (mutated in place)
+     * @param count    the total number of questions requested
      */
     private void fillRemaining(final InterviewType category,
-                               final List<com.devlaunch.entity.InterviewQuestion> selected) {
-        final int missing = QUESTIONS_PER_INTERVIEW - selected.size();
+                               final List<com.devlaunch.entity.InterviewQuestion> selected,
+                               final int count) {
+        final int missing = count - selected.size();
         if (missing <= 0) {
             return;
         }
@@ -138,7 +168,7 @@ public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankSe
                 .findRandomByCategoryAndActiveTrue(category, missing + selected.size());
 
         for (final com.devlaunch.entity.InterviewQuestion question : pool) {
-            if (selected.size() >= QUESTIONS_PER_INTERVIEW) {
+            if (selected.size() >= count) {
                 break;
             }
             if (!selectedIds.contains(question.getId())) {
@@ -150,12 +180,24 @@ public class InterviewQuestionBankServiceImpl implements InterviewQuestionBankSe
     /**
      * Maps a bank entity to the internal question DTO consumed by the
      * mock interview providers, using the database identifier as the
-     * session-scoped question id.
+     * session-scoped question id and carrying the bank difficulty through
+     * for per-question badges.
      */
     private InterviewQuestion toQuestion(
             final com.devlaunch.entity.InterviewQuestion question) {
         return new InterviewQuestion(
-                String.valueOf(question.getId()), question.getQuestion(), null);
+                String.valueOf(question.getId()), question.getQuestion(), null,
+                question.getDifficulty());
+    }
+
+    /**
+     * The per-difficulty selection targets for one interview.
+     *
+     * @param easy   the number of easy questions to request
+     * @param medium the number of medium questions to request
+     * @param hard   the number of hard questions to request
+     */
+    private record DifficultyTargets(int easy, int medium, int hard) {
     }
 
 }

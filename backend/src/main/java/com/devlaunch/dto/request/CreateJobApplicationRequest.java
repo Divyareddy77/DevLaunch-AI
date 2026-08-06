@@ -1,6 +1,8 @@
 package com.devlaunch.dto.request;
 
+import com.devlaunch.entity.enums.ApplicationPriority;
 import com.devlaunch.entity.enums.ApplicationStatus;
+import com.devlaunch.entity.enums.WorkMode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -81,6 +83,45 @@ public class CreateJobApplicationRequest {
      * The URL to the job posting or application page.
      */
     private String jobUrl;
+
+    /**
+     * The company's website, used to display the company logo.
+     */
+    private String companyWebsite;
+
+    /**
+     * The name of the recruiter handling this application.
+     */
+    private String recruiterName;
+
+    /**
+     * The email address of the recruiter handling this application.
+     */
+    private String recruiterEmail;
+
+    /**
+     * Who referred the user for this position.
+     */
+    private String referral;
+
+    /**
+     * The work mode of the position (remote, hybrid, or onsite).
+     */
+    private WorkMode workMode;
+
+    /**
+     * The priority the user assigns to this application.
+     * <p>
+     * May be {@code null}; the service defaults it to {@link ApplicationPriority#MEDIUM}.
+     * </p>
+     */
+    private ApplicationPriority priority;
+
+    /**
+     * The technology stack associated with the role, stored as a
+     * comma-separated list.
+     */
+    private String technology;
 
     /**
      * Free-text notes about the application, such as preparation notes,

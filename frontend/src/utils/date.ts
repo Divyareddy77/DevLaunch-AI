@@ -13,6 +13,21 @@
 import { format, formatDistanceToNow, parseISO, isValid, isPast, isFuture, differenceInDays } from 'date-fns';
 
 /**
+ * Formats a time-of-day string (HH:mm[:ss]) into a 12-hour label.
+ * Example: "14:00:00" → "2:00 PM"
+ */
+export function formatTime(timeString: string | null | undefined): string {
+  if (!timeString) return '—';
+  const [hourPart, minutePart] = timeString.split(':');
+  const hour = Number(hourPart);
+  if (Number.isNaN(hour)) return timeString;
+  const minute = minutePart ?? '00';
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${period}`;
+}
+
+/**
  * Formats an ISO date string into a human-readable format.
  * Example: "2024-03-15" → "Mar 15, 2024"
  */

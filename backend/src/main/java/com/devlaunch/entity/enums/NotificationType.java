@@ -43,6 +43,12 @@ public enum NotificationType {
     RESUME_REVIEW,
 
     /**
+     * A placement readiness milestone (improved overall score or
+     * reached a higher readiness level).
+     */
+    READINESS,
+
+    /**
      * A general system notification.
      */
     SYSTEM

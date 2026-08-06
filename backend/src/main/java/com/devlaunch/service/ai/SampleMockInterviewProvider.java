@@ -1,5 +1,6 @@
 package com.devlaunch.service.ai;
 
+import com.devlaunch.entity.enums.InterviewDifficulty;
 import com.devlaunch.entity.enums.InterviewType;
 import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import org.springframework.stereotype.Service;
@@ -1215,8 +1216,10 @@ public class SampleMockInterviewProvider implements MockInterviewProvider {
      * </p>
      */
     @Override
-    public List<InterviewQuestion> generateQuestions(final InterviewType type) {
-        return questionBankService.selectForInterview(type);
+    public List<InterviewQuestion> generateQuestions(final InterviewType type,
+                                                     final InterviewDifficulty difficulty,
+                                                     final int count) {
+        return questionBankService.selectForInterview(type, difficulty, count);
     }
 
     /**
@@ -1253,7 +1256,8 @@ public class SampleMockInterviewProvider implements MockInterviewProvider {
                     answer.answer(),
                     score,
                     feedbackText,
-                    suggestions));
+                    suggestions,
+                    improvedAnswerFor(answer.question(), score)));
 
             if (score >= 75) {
                 strengths.add("Strong response to: " + answer.question());
@@ -1275,11 +1279,44 @@ public class SampleMockInterviewProvider implements MockInterviewProvider {
                 ? 0
                 : Math.round((float) scoreSum / answers.size());
 
+        final InterviewFeedbackMetrics.Metrics metrics =
+                InterviewFeedbackMetrics.compute(type, items);
+
         return new MockInterviewFeedback(
                 overallScore,
+                metrics.technicalScore(),
+                metrics.communicationScore(),
+                metrics.confidenceScore(),
+                metrics.problemSolvingScore(),
+                metrics.clarityScore(),
+                metrics.vocabularyScore(),
+                metrics.professionalismScore(),
                 List.copyOf(items),
                 List.copyOf(strengths),
-                List.copyOf(areasForImprovement));
+                List.copyOf(areasForImprovement),
+                metrics.suggestions(),
+                metrics.missedConcepts());
+    }
+
+    /**
+     * Builds a short sample improved answer for answers that scored below
+     * the strong threshold, or {@code null} for answers that are already
+     * strong. The template guides the candidate through the structure of a
+     * high-scoring answer (definition, example, practical takeaway).
+     *
+     * @param question the question text
+     * @param score    the answer's score
+     * @return a sample improved answer, or {@code null}
+     */
+    private String improvedAnswerFor(final String question, final int score) {
+        if (score >= 70) {
+            return null;
+        }
+        return "A stronger answer would open with a one-sentence definition of the concept, "
+                + "then demonstrate it with a concrete example, and close with how you applied "
+                + "it in practice. For the question \"" + question + "\", start by defining the "
+                + "core idea, walk through a small worked example, and end with a real-world "
+                + "outcome from your own experience.";
     }
 
     /**

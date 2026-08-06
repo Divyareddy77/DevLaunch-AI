@@ -3,6 +3,7 @@ package com.devlaunch.controller;
 import com.devlaunch.dto.request.MockInterviewStartRequest;
 import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
+import com.devlaunch.dto.response.MockInterviewCategoryResponse;
 import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
@@ -11,11 +12,15 @@ import com.devlaunch.service.interfaces.AiService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * REST controller for AI-powered features.
@@ -112,6 +117,34 @@ public class AiController {
     public ResponseEntity<MockInterviewHistoryResponse> getMockInterviewHistory() {
         MockInterviewHistoryResponse response = aiService.getMockInterviewHistory();
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves per-category statistics for the mock interview landing
+     * page: the question bank size together with the authenticated user's
+     * practice history for each category.
+     *
+     * @return a {@link ResponseEntity} containing the per-category
+     *         statistics with HTTP status 200 (OK)
+     */
+    @GetMapping("/mock-interview/categories")
+    public ResponseEntity<List<MockInterviewCategoryResponse>> getMockInterviewCategories() {
+        List<MockInterviewCategoryResponse> response = aiService.getMockInterviewCategories();
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Deletes a completed interview session from the authenticated user's
+     * history.
+     *
+     * @param sessionId the client-generated session identifier to delete
+     * @return a {@link ResponseEntity} containing a success message
+     *         with HTTP status 200 (OK)
+     */
+    @DeleteMapping("/mock-interview/history/{sessionId}")
+    public ResponseEntity<String> deleteMockInterview(@PathVariable final String sessionId) {
+        aiService.deleteMockInterview(sessionId);
+        return ResponseEntity.ok("Interview session deleted successfully.");
     }
 
 }

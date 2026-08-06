@@ -16,6 +16,7 @@ import type {
   SubmitInterviewRequest,
   SubmitInterviewResponse,
   InterviewHistoryResponse,
+  InterviewCategoryStats,
   ResumeReviewRequest,
   ResumeReviewResponse,
 } from '../types/ai';
@@ -46,6 +47,23 @@ export const aiService = {
   getInterviewHistory: () =>
     apiClient
       .get<InterviewHistoryResponse>(AI.INTERVIEW_HISTORY)
+      .then((res) => res.data),
+
+  /**
+   * Retrieves per-category statistics (bank size, best score, last
+   * attempt) for the mock interview landing page.
+   */
+  getInterviewCategories: () =>
+    apiClient
+      .get<InterviewCategoryStats[]>(AI.INTERVIEW_CATEGORIES)
+      .then((res) => res.data),
+
+  /**
+   * Deletes a completed interview session from the user's history.
+   */
+  deleteInterviewSession: (sessionId: string) =>
+    apiClient
+      .delete<string>(AI.INTERVIEW_HISTORY_BY_SESSION(sessionId))
       .then((res) => res.data),
 
   /**

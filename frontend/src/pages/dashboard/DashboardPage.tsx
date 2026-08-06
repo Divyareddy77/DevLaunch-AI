@@ -14,8 +14,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
-  Code2,
-  Link2,
   Award,
   Target,
   Bell,
@@ -27,31 +25,18 @@ import { dashboardService } from '../../services/dashboard.service';
 import { announcementService } from '../../services/announcement.service';
 import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
 import { DashboardCard } from '../../components/dashboard/DashboardCard';
+import { PlacementReadinessCard } from '../../components/dashboard/PlacementReadinessCard';
 import { JobApplicationCard } from '../../components/dashboard/JobApplicationCard';
 import { StudyPlannerCard } from '../../components/dashboard/StudyPlannerCard';
 import { GitHubCard } from '../../components/dashboard/GitHubCard';
+import { LeetCodeCard } from '../../components/dashboard/LeetCodeCard';
+import { MockInterviewCard } from '../../components/dashboard/MockInterviewCard';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
 import { formatDate } from '../../utils/date';
 import { ROUTES } from '../../constants/routes';
 import type { DashboardResponse } from '../../types/dashboard';
 import type { Announcement } from '../../types/announcement';
-
-/** Mapping from score to display colour for the placement readiness ring. */
-function scoreColor(score: number): string {
-  if (score >= 80) return '#10b981'; // emerald
-  if (score >= 60) return '#6366f1'; // indigo
-  if (score >= 40) return '#f59e0b'; // amber
-  return '#ef4444'; // red
-}
-
-/** Background tint for the score ring. */
-function scoreBgColor(score: number): string {
-  if (score >= 80) return 'text-emerald-600';
-  if (score >= 60) return 'text-indigo-600';
-  if (score >= 40) return 'text-amber-600';
-  return 'text-red-600';
-}
 
 /** Text colour for the latest ATS score on the dashboard card. */
 function atsScoreTextColor(score: number): string {
@@ -68,53 +53,6 @@ function atsScoreBadgeColor(score: number): string {
   if (score >= 40) return 'bg-amber-100 text-amber-700';
   return 'bg-red-100 text-red-700';
 }
-
-/**
- * SVG circular progress ring component.
- * Renders a donut ring with the score value in the centre.
- */
-const ProgressRing: React.FC<{ score: number; size?: number; strokeWidth?: number }> = ({
-  score,
-  size = 120,
-  strokeWidth = 10,
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const color = scoreColor(score);
-
-  return (
-    <div className="relative inline-flex items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#e5e7eb"
-          strokeWidth={strokeWidth}
-        />
-        {/* Progress arc */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-700 ease-out"
-        />
-      </svg>
-      <span className={`absolute text-3xl font-bold ${scoreBgColor(score)}`}>
-        {score}
-      </span>
-    </div>
-  );
-};
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -181,6 +119,7 @@ export const DashboardPage: React.FC = () => {
   const goToStudy = () => navigate(ROUTES.STUDY_PLANNER_LIST);
   const goToGitHub = () => navigate(ROUTES.GITHUB_ANALYTICS);
   const goToLeetCode = () => navigate(ROUTES.LEETCODE_TRACKER);
+  const goToMockInterview = () => navigate(ROUTES.MOCK_INTERVIEW);
 
   return (
     <div>
@@ -197,24 +136,8 @@ export const DashboardPage: React.FC = () => {
       {/* ---- Announcements (active, newest first) ---- */}
       <AnnouncementBanner announcements={announcements} />
 
-      {/* ---- Hero: Placement Readiness ---- */}
-      <div className="mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col items-center gap-6 px-6 py-8 sm:flex-row sm:justify-between sm:px-10">
-          <div className="text-center sm:text-left">
-            <h2 className="text-lg font-semibold text-gray-900">Placement Readiness</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Your overall score is calculated from resume completeness, job
-              applications, study progress, GitHub presence, and LeetCode activity.
-            </p>
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <ProgressRing score={data.placementReadiness} size={120} strokeWidth={10} />
-            <p className="mt-1 text-xs font-medium text-gray-400">
-              out of 100
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* ---- Hero: Placement Readiness (enhanced) ---- */}
+      <PlacementReadinessCard data={data} />
 
       {/* ---- Metrics grid ---- */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -294,7 +217,22 @@ export const DashboardPage: React.FC = () => {
         <JobApplicationCard
           totalApplications={data.totalJobApplications}
           interviewApplications={data.interviewApplications}
+          offerApplications={data.offerApplications}
+          assessmentApplications={data.assessmentApplications}
+          recentApplications={data.recentApplications}
+          upcomingInterview={data.upcomingInterview}
           onViewAll={goToJobs}
+        />
+
+        {/* Mock Interviews */}
+        <MockInterviewCard
+          count={data.mockInterviewCount}
+          latestScore={data.mockInterviewLatestScore}
+          averageScore={data.mockInterviewAverageScore}
+          bestScore={data.mockInterviewBestScore}
+          trend={data.mockInterviewTrend}
+          insight={data.mockInterviewInsight}
+          onViewAll={goToMockInterview}
         />
 
         {/* Study Planner */}
@@ -306,43 +244,29 @@ export const DashboardPage: React.FC = () => {
 
         {/* GitHub Analytics */}
         <GitHubCard
+          connected={data.githubUsername !== null}
+          username={data.githubUsername}
           repositoryCount={data.githubRepositories}
           topLanguage={data.githubTopLanguage}
-          followers={null}
-          following={null}
+          followers={data.githubFollowers}
+          following={data.githubFollowing}
           onViewAll={goToGitHub}
+          onConnect={goToGitHub}
         />
 
-        {/* LeetCode Progress — show "Coming Soon" instead of 0 */}
-        <DashboardCard
-          title="LeetCode Progress"
-          icon={<Code2 className="h-5 w-5" />}
-          action={
-            <button
-              onClick={goToLeetCode}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-            >
-              View Tracker
-            </button>
-          }
-        >
-          {data.leetcodeSolved > 0 ? (
-            <div className="flex flex-col items-center">
-              <span className="text-4xl font-bold text-gray-900">
-                {data.leetcodeSolved}
-              </span>
-              <p className="mt-1 text-sm text-gray-500">problems solved</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center py-4">
-              <Link2 className="mb-2 h-8 w-8 text-gray-300" />
-              <p className="text-sm font-medium text-gray-500">No LeetCode account linked</p>
-              <p className="mt-0.5 text-xs text-gray-400">
-                Connect your LeetCode username to track progress
-              </p>
-            </div>
-          )}
-        </DashboardCard>
+        {/* LeetCode Progress */}
+        <LeetCodeCard
+          connected={data.leetcodeUsername !== null}
+          username={data.leetcodeUsername}
+          totalSolved={data.leetcodeSolved}
+          easySolved={data.leetcodeEasySolved}
+          mediumSolved={data.leetcodeMediumSolved}
+          hardSolved={data.leetcodeHardSolved}
+          acceptanceRate={data.leetcodeAcceptanceRate}
+          ranking={data.leetcodeRanking}
+          onViewAll={goToLeetCode}
+          onConnect={goToLeetCode}
+        />
 
         {/* Achievements summary placeholder */}
         <DashboardCard

@@ -1,6 +1,8 @@
 package com.devlaunch.entity;
 
+import com.devlaunch.entity.enums.ApplicationPriority;
 import com.devlaunch.entity.enums.ApplicationStatus;
+import com.devlaunch.entity.enums.WorkMode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -110,6 +112,55 @@ public class JobApplication extends BaseEntity {
      */
     @Column(name = "job_url", length = 500)
     private String jobUrl;
+
+    /**
+     * The company's website, used to display the company logo.
+     */
+    @Column(name = "company_website", length = 500)
+    private String companyWebsite;
+
+    /**
+     * The name of the recruiter handling this application.
+     */
+    @Column(name = "recruiter_name", length = 100)
+    private String recruiterName;
+
+    /**
+     * The email address of the recruiter handling this application.
+     */
+    @Column(name = "recruiter_email", length = 255)
+    private String recruiterEmail;
+
+    /**
+     * Who referred the user for this position (e.g. an employee name).
+     */
+    @Column(name = "referral", length = 255)
+    private String referral;
+
+    /**
+     * The work mode of the position (remote, hybrid, or onsite).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "work_mode", length = 20)
+    private WorkMode workMode;
+
+    /**
+     * The priority the user assigns to this application.
+     * <p>
+     * Defaults to {@link ApplicationPriority#MEDIUM} when not provided.
+     * </p>
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", length = 20)
+    @Builder.Default
+    private ApplicationPriority priority = ApplicationPriority.MEDIUM;
+
+    /**
+     * The technology stack associated with the role, stored as a
+     * comma-separated list (e.g. "Java, Spring Boot, React").
+     */
+    @Column(name = "technology", length = 500)
+    private String technology;
 
     /**
      * Free-text notes about the application, such as preparation notes,

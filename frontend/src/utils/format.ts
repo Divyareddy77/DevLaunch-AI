@@ -46,6 +46,29 @@ export function getScoreBadgeVariant(score: number): 'success' | 'warning' | 'da
 }
 
 /**
+ * Formats a duration in seconds as "12m 30s" (or just "45s" under a minute).
+ */
+export function formatDuration(totalSeconds: number | null | undefined): string {
+  if (totalSeconds === null || totalSeconds === undefined) return '—';
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  if (minutes === 0) return `${remaining}s`;
+  if (remaining === 0) return `${minutes}m`;
+  return `${minutes}m ${remaining}s`;
+}
+
+/**
+ * Formats a duration in seconds as "MM:SS" for timers and countdowns.
+ */
+export function formatClock(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+}
+
+/**
  * Truncates a string to the given length, appending an ellipsis if needed.
  */
 export function truncate(str: string, maxLength: number): string {

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository interface for {@link InterviewSession} entity operations.
@@ -29,6 +30,24 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
      *         or an empty list if none exist
      */
     List<InterviewSession> findByUserOrderByCompletedAtDesc(User user);
+
+    /**
+     * Counts the interview sessions belonging to the specified user.
+     *
+     * @param user the user whose interview sessions to count
+     * @return the number of interview sessions belonging to the user
+     */
+    long countByUser(User user);
+
+    /**
+     * Finds a session by its client-generated identifier, verifying it
+     * belongs to the specified user.
+     *
+     * @param sessionId the client-generated session identifier
+     * @param user      the session owner
+     * @return the matching session, or an empty {@link Optional}
+     */
+    Optional<InterviewSession> findBySessionIdAndUser(String sessionId, User user);
 
     /**
      * Finds the ten most recently completed interview sessions across

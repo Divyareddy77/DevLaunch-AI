@@ -1,5 +1,6 @@
 package com.devlaunch.dto.request;
 
+import com.devlaunch.entity.enums.InterviewDifficulty;
 import com.devlaunch.entity.enums.InterviewType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -18,7 +19,8 @@ import java.util.List;
  * Request DTO for submitting the answers of a mock interview session.
  * <p>
  * Carries the session identifier issued when the interview started, the
- * interview category, and the list of question/answer pairs to evaluate.
+ * interview category, the session configuration, and the list of
+ * question/answer pairs to evaluate.
  * </p>
  *
  * @author DevLaunch
@@ -48,6 +50,22 @@ public class MockInterviewSubmitRequest {
      */
     @NotNull(message = "Interview type is required")
     private InterviewType interviewType;
+
+    /**
+     * The difficulty mode of the interview, defaulting to
+     * {@link InterviewDifficulty#MIXED} when not provided.
+     */
+    private InterviewDifficulty difficulty;
+
+    /**
+     * Whether the interview was timed, defaulting to {@code false}.
+     */
+    private Boolean timed;
+
+    /**
+     * The total time spent on the interview in seconds.
+     */
+    private Integer durationSeconds;
 
     /**
      * The question/answer pairs to evaluate.

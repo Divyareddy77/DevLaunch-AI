@@ -16,6 +16,12 @@ spring:
       idle-timeout: ${DB_IDLE_TIMEOUT:300000}
       connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
 
+  servlet:
+    multipart:
+      # Job application attachments (resumes, cover letters, offer letters)
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:10MB}
+
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:update}
@@ -55,6 +61,10 @@ devlaunch:
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
     connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:10}
     read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
+
+  # Local directory where job application attachments are stored on disk.
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}
 
 # JWT Configuration
 jwt:

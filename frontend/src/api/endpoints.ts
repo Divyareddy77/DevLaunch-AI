@@ -17,6 +17,10 @@ export const AUTH = {
 export const USERS = {
   ME: '/api/users/me',
   CHANGE_PASSWORD: '/api/users/change-password',
+  /** PUT/DELETE — Link/unlink a GitHub username (body: { username }). */
+  GITHUB_CONNECT: '/api/users/me/github',
+  /** PUT/DELETE — Link/unlink a LeetCode username (body: { username }). */
+  LEETCODE_CONNECT: '/api/users/me/leetcode',
 } as const;
 
 export const DASHBOARD = '/api/dashboard';
@@ -59,6 +63,30 @@ export const RESUME_SUB_RESOURCES = {
 export const JOB_APPLICATIONS = {
   BASE: '/api/job-applications',
   BY_ID: (id: number) => `/api/job-applications/${id}`,
+  /** PUT — Update only the status (Kanban drag-and-drop). */
+  STATUS: (id: number) => `/api/job-applications/${id}/status`,
+  /** GET — Aggregated application analytics. */
+  ANALYTICS: '/api/job-applications/analytics',
+  /** GET — Application milestone timeline. */
+  TIMELINE: (id: number) => `/api/job-applications/${id}/timeline`,
+  /** GET/POST — Interview schedules for an application. */
+  INTERVIEWS: (id: number) => `/api/job-applications/${id}/interviews`,
+  /** PUT/DELETE — Update or cancel a single interview. */
+  INTERVIEW_BY_ID: (interviewId: number) =>
+    `/api/job-applications/interviews/${interviewId}`,
+  /** GET/POST — Private interview notes. */
+  NOTES: (id: number) => `/api/job-applications/${id}/notes`,
+  /** DELETE — Remove a single interview note. */
+  NOTE_BY_ID: (id: number, noteId: number) =>
+    `/api/job-applications/${id}/notes/${noteId}`,
+  /** GET/POST — Attachments for an application. */
+  ATTACHMENTS: (id: number) => `/api/job-applications/${id}/attachments`,
+  /** GET — Download a single attachment. */
+  ATTACHMENT_DOWNLOAD: (id: number, attachmentId: number) =>
+    `/api/job-applications/${id}/attachments/${attachmentId}/download`,
+  /** DELETE — Remove a single attachment. */
+  ATTACHMENT_BY_ID: (id: number, attachmentId: number) =>
+    `/api/job-applications/${id}/attachments/${attachmentId}`,
 } as const;
 
 export const STUDY_PLANNERS = {
@@ -89,6 +117,11 @@ export const AI = {
   SUBMIT_INTERVIEW: '/api/ai/mock-interview/feedback',
   /** GET — Retrieve the authenticated user's interview history. */
   INTERVIEW_HISTORY: '/api/ai/mock-interview/history',
+  /** GET — Per-category statistics for the landing page. */
+  INTERVIEW_CATEGORIES: '/api/ai/mock-interview/categories',
+  /** DELETE — Remove a single interview session from the history. */
+  INTERVIEW_HISTORY_BY_SESSION: (sessionId: string) =>
+    `/api/ai/mock-interview/history/${encodeURIComponent(sessionId)}`,
   /** POST — Submit a resume for AI-powered review. */
   REVIEW_RESUME: '/api/ai/resume-review',
 } as const;

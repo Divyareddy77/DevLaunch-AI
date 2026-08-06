@@ -5,6 +5,7 @@ import com.devlaunch.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,5 +62,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * @return a list of the user's notifications, or an empty list if none exist
      */
     List<Notification> findByUser(User user);
+
+    /**
+     * Checks whether a notification matching the given title and message
+     * was created for the user at or after the given moment.
+     * <p>
+     * Used by the interview-reminder scheduler to avoid sending the same
+     * "interview tomorrow" notification twice for the same interview.
+     * </p>
+     *
+     * @param user       the user to check
+     * @param title      the notification title
+     * @param message    the exact notification message
+     * @param from       the earliest creation moment to consider
+     * @return {@code true} if such a notification already exists
+     */
+    boolean existsByUserAndTitleAndMessageAndCreatedAtGreaterThanEqual(
+            User user, String title, String message, LocalDateTime from);
 
 }
