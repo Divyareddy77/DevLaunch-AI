@@ -55,4 +55,11 @@ public class LeetCodeProfileResponse {
      */
     private Integer ranking;
 
+    /**
+     * The user's overall acceptance rate (accepted submissions divided by
+     * total submissions) as a percentage, or {@code null} if the value
+     * could not be determined.
+     */
+    private Double acceptanceRate;
+
 }

@@ -4,9 +4,11 @@ import com.devlaunch.dto.request.ChangePasswordRequest;
 import com.devlaunch.dto.request.UpdateUserRequest;
 import com.devlaunch.dto.response.UserResponse;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.AuthMapper;
 import com.devlaunch.repository.UserRepository;
+import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.service.interfaces.UserService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,20 +35,24 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
 
     /**
      * Constructs the user service with the required dependencies.
      *
-     * @param userRepository repository for user data access
-     * @param authMapper     mapper for entity-to-DTO conversion
-     * @param passwordEncoder encoder for hashing user passwords
+     * @param userRepository     repository for user data access
+     * @param authMapper         mapper for entity-to-DTO conversion
+     * @param passwordEncoder    encoder for hashing user passwords
+     * @param notificationService service for creating account-link notifications
      */
     public UserServiceImpl(final UserRepository userRepository,
                            final AuthMapper authMapper,
-                           final PasswordEncoder passwordEncoder) {
+                           final PasswordEncoder passwordEncoder,
+                           final NotificationService notificationService) {
         this.userRepository = userRepository;
         this.authMapper = authMapper;
         this.passwordEncoder = passwordEncoder;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -70,6 +76,74 @@ public class UserServiceImpl implements UserService {
         user.setLastName(request.getLastName());
         user.setPhone(request.getPhone());
         final User savedUser = userRepository.save(user);
+        return authMapper.toUserResponse(savedUser);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public UserResponse connectGitHub(final String username) {
+        final User user = getAuthenticatedUser();
+        user.setGithubUsername(username.trim());
+        final User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(user, NotificationType.SYSTEM,
+                "GitHub Account Connected",
+                "GitHub account connected successfully.");
+
+        return authMapper.toUserResponse(savedUser);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public UserResponse disconnectGitHub() {
+        final User user = getAuthenticatedUser();
+        user.setGithubUsername(null);
+        final User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(user, NotificationType.SYSTEM,
+                "GitHub Account Disconnected",
+                "GitHub account disconnected.");
+
+        return authMapper.toUserResponse(savedUser);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public UserResponse connectLeetCode(final String username) {
+        final User user = getAuthenticatedUser();
+        user.setLeetcodeUsername(username.trim());
+        final User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(user, NotificationType.SYSTEM,
+                "LeetCode Account Connected",
+                "LeetCode account connected successfully.");
+
+        return authMapper.toUserResponse(savedUser);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public UserResponse disconnectLeetCode() {
+        final User user = getAuthenticatedUser();
+        user.setLeetcodeUsername(null);
+        final User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(user, NotificationType.SYSTEM,
+                "LeetCode Account Disconnected",
+                "LeetCode account disconnected.");
+
         return authMapper.toUserResponse(savedUser);
     }
 

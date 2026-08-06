@@ -1,6 +1,8 @@
 package com.devlaunch.dto.request;
 
+import com.devlaunch.entity.enums.ApplicationPriority;
 import com.devlaunch.entity.enums.ApplicationStatus;
+import com.devlaunch.entity.enums.WorkMode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -81,6 +83,41 @@ public class UpdateJobApplicationRequest {
      * The updated URL to the job posting or application page.
      */
     private String jobUrl;
+
+    /**
+     * The updated company website, used to display the company logo.
+     */
+    private String companyWebsite;
+
+    /**
+     * The updated recruiter name.
+     */
+    private String recruiterName;
+
+    /**
+     * The updated recruiter email.
+     */
+    private String recruiterEmail;
+
+    /**
+     * The updated referral source.
+     */
+    private String referral;
+
+    /**
+     * The updated work mode (remote, hybrid, or onsite).
+     */
+    private WorkMode workMode;
+
+    /**
+     * The updated priority.
+     */
+    private ApplicationPriority priority;
+
+    /**
+     * The updated technology stack, stored as a comma-separated list.
+     */
+    private String technology;
 
     /**
      * Updated free-text notes about the application.

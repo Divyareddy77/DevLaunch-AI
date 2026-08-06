@@ -38,6 +38,10 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                     difficulty
                     count
                   }
+                  totalSubmissionNum {
+                    difficulty
+                    count
+                  }
                 }
                 profile {
                   ranking
@@ -93,6 +97,7 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         int easySolved = 0;
         int mediumSolved = 0;
         int hardSolved = 0;
+        int totalSubmissions = 0;
 
         if (matchedUser.submitStats != null
                 && matchedUser.submitStats.acSubmissionNum != null) {
@@ -112,8 +117,22 @@ public class LeetCodeServiceImpl implements LeetCodeService {
             }
         }
 
+        if (matchedUser.submitStats != null
+                && matchedUser.submitStats.totalSubmissionNum != null) {
+            for (SubmissionNum submission : matchedUser.submitStats.totalSubmissionNum) {
+                if ("All".equals(submission.difficulty)
+                        && submission.count != null) {
+                    totalSubmissions = submission.count;
+                }
+            }
+        }
+
         Integer ranking = matchedUser.profile != null
                 ? matchedUser.profile.ranking
+                : null;
+
+        Double acceptanceRate = totalSubmissions > 0
+                ? Math.round((double) totalSolved / totalSubmissions * 1000) / 10.0
                 : null;
 
         return LeetCodeProfileResponse.builder()
@@ -123,6 +142,7 @@ public class LeetCodeServiceImpl implements LeetCodeService {
                 .mediumSolved(mediumSolved)
                 .hardSolved(hardSolved)
                 .ranking(ranking)
+                .acceptanceRate(acceptanceRate)
                 .build();
     }
 
@@ -226,6 +246,9 @@ public class LeetCodeServiceImpl implements LeetCodeService {
 
         @JsonProperty("acSubmissionNum")
         private List<SubmissionNum> acSubmissionNum;
+
+        @JsonProperty("totalSubmissionNum")
+        private List<SubmissionNum> totalSubmissionNum;
 
     }
 

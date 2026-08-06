@@ -57,6 +57,24 @@ public class User extends BaseEntity {
     @Column(name = "phone", nullable = false, length = 20)
     private String phone;
 
+    /**
+     * The GitHub username linked to this account, or {@code null} if the
+     * user has not connected a GitHub account yet.
+     * <p>
+     * Stored on the user so the dashboard and analytics pages can reuse
+     * the same account across devices without relying on localStorage.
+     * </p>
+     */
+    @Column(name = "github_username", length = 50)
+    private String githubUsername;
+
+    /**
+     * The LeetCode username linked to this account, or {@code null} if the
+     * user has not connected a LeetCode account yet.
+     */
+    @Column(name = "leetcode_username", length = 50)
+    private String leetcodeUsername;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = Boolean.TRUE;

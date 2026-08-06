@@ -9,9 +9,12 @@
  * @author DevLaunch
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Search, Code2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { leetCodeService } from '../../services/leetcode.service';
+import { userService } from '../../services/user.service';
+import { LinkedAccountCard } from '../../components/account/LinkedAccountCard';
 import { LeetCodeProfileCard } from '../../components/leetcode/LeetCodeProfileCard';
 import { LeetCodeStatsCard } from '../../components/leetcode/LeetCodeStatsCard';
 import { DifficultyProgress } from '../../components/leetcode/DifficultyProgress';
@@ -33,6 +36,12 @@ export const LeetCodeTrackerPage: React.FC = () => {
   const [profile, setProfile] = useState<LeetCodeProfileResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Linked account state (persisted on the backend for the authenticated user).
+  const [connectedUsername, setConnectedUsername] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   /** Fetches the LeetCode profile for the given username. */
   const fetchLeetCode = useCallback(async (username: string) => {
@@ -64,6 +73,57 @@ export const LeetCodeTrackerPage: React.FC = () => {
     // left `searchedUsername` pointing at the previously loaded username.
     fetchLeetCode(searchInput);
   };
+
+  // Load the linked LeetCode username once on mount.
+  useEffect(() => {
+    userService
+      .getCurrentUser()
+      .then((currentUser) => setConnectedUsername(currentUser.leetcodeUsername))
+      .catch(() => {
+        // Account linking is supplementary — keep the disconnected state.
+      });
+  }, []);
+
+  /** Saves the entered username as the linked LeetCode account. */
+  const handleConnect = useCallback(async (username: string) => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      await userService.connectLeetCode(username);
+      setConnectedUsername(username);
+      toast.success(MESSAGES.LEETCODE_CONNECTED);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, MESSAGES.ACCOUNT_CONNECT_ERROR('LeetCode')));
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  /** Re-fetches the connected account's latest data using the existing search flow. */
+  const handleRefresh = useCallback(async () => {
+    if (!connectedUsername) return;
+    setIsRefreshing(true);
+    await fetchLeetCode(connectedUsername);
+    setIsRefreshing(false);
+  }, [connectedUsername, fetchLeetCode]);
+
+  /** Removes the linked username and clears cached search data. */
+  const handleDisconnect = useCallback(async () => {
+    setIsDisconnecting(true);
+    setError(null);
+    try {
+      await userService.disconnectLeetCode();
+      setConnectedUsername(null);
+      // Clear cached data so the page returns to its initial state.
+      setSearchedUsername(null);
+      setProfile(null);
+      toast.success(MESSAGES.LEETCODE_DISCONNECTED);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, MESSAGES.ACCOUNT_DISCONNECT_ERROR('LeetCode')));
+    } finally {
+      setIsDisconnecting(false);
+    }
+  }, []);
 
   // ---- Content area state machine ----
   let content: React.ReactNode;
@@ -132,6 +192,19 @@ export const LeetCodeTrackerPage: React.FC = () => {
           global ranking.
         </p>
       </div>
+
+      {/* Linked account section */}
+      <LinkedAccountCard
+        platform="LeetCode"
+        icon={<Code2 className="h-4 w-4" />}
+        username={connectedUsername}
+        isConnecting={isConnecting}
+        isRefreshing={isRefreshing}
+        isDisconnecting={isDisconnecting}
+        onConnect={handleConnect}
+        onRefresh={handleRefresh}
+        onDisconnect={handleDisconnect}
+      />
 
       {/* Username search */}
       <form

@@ -49,6 +49,17 @@ export const MESSAGES = {
   MOCK_INTERVIEW_SUBMIT_ERROR: 'Failed to submit your interview. Please try again.',
   INTERVIEW_HISTORY_ERROR: 'Failed to load your interview history. Please try again.',
   INTERVIEW_SUBMITTED: 'Interview submitted! Here is your AI feedback.',
+  INTERVIEW_DELETED: 'Interview session deleted from your history.',
+  INTERVIEW_DELETE_ERROR: 'Failed to delete the interview session. Please try again.',
+  INTERVIEW_SPEECH_UNSUPPORTED:
+    'Speech recognition is not supported in this browser. Please use Chrome or Microsoft Edge.',
+  INTERVIEW_SPEECH_PERMISSION_DENIED:
+    'Microphone access was denied. Please allow microphone access in your browser and try again.',
+  INTERVIEW_SPEECH_RECOVERY_FAILED:
+    'Speech recognition stopped responding. Please check your microphone and try again.',
+  INTERVIEW_CAMERA_DENIED:
+    'Camera permission was denied — continuing without video. You can disable the camera in setup.',
+  INTERVIEW_AUTOSAVED: 'Your answer was auto-saved.',
 
   // ---- Empty states ----
   NO_RESUMES: 'You haven\'t created any resumes yet. Create your first resume to get started.',
@@ -59,6 +70,18 @@ export const MESSAGES = {
   NO_INTERVIEW_HISTORY: 'No mock interviews completed yet. Practice with your first interview.',
   NO_NOTIFICATIONS: 'You\'re all caught up! No new notifications.',
   NO_RESULTS: 'No results found. Try adjusting your search or filters.',
+
+  // ---- Account linking ----
+  GITHUB_CONNECTED: 'GitHub account connected successfully.',
+  GITHUB_DISCONNECTED: 'GitHub account disconnected.',
+  LEETCODE_CONNECTED: 'LeetCode account connected successfully.',
+  LEETCODE_DISCONNECTED: 'LeetCode account disconnected.',
+  ACCOUNT_CONNECT_ERROR: (platform: string) =>
+    `Failed to connect your ${platform} account. Please try again.`,
+  ACCOUNT_DISCONNECT_ERROR: (platform: string) =>
+    `Failed to disconnect your ${platform} account. Please try again.`,
+  ACCOUNT_REFRESH_ERROR: (platform: string) =>
+    `Failed to refresh your ${platform} data. Please try again.`,
 
   // ---- Notifications ----
   NOTIFICATIONS_ALL_READ: 'All notifications marked as read.',

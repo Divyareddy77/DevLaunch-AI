@@ -10,9 +10,9 @@ import com.devlaunch.dto.response.DashboardResponse;
  * including resume data, job applications, study tasks, GitHub statistics,
  * and LeetCode progress. LeetCode metrics are optional and depend on a
  * linked LeetCode account — they will be populated when account linking is
- * added to the user profile in a future phase. All data is derived from
- * existing repositories and services — no new database tables or entities
- * are required.
+ * added to the user profile in a future phase. All module data is derived
+ * from existing repositories and services; the only new persistence is a
+ * lightweight readiness snapshot used to track score changes over time.
  * </p>
  *
  * @author DevLaunch
@@ -30,6 +30,9 @@ public interface DashboardService {
      *   <li>GitHub repository count and primary language (via the GitHub API)</li>
      *   <li>LeetCode problems solved (via the LeetCode GraphQL API)</li>
      *   <li>An overall placement readiness score (0–100) computed from the above</li>
+     *   <li>A readiness summary: status level, module breakdown, strengths,
+     *       improvement areas, personalized recommendations, and progress
+     *       tracking against the previously recorded score</li>
      * </ul>
      * </p>
      *

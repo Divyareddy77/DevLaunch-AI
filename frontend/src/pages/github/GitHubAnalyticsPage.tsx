@@ -10,9 +10,12 @@
  * @author DevLaunch
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Search, Github, BookOpen } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { githubService } from '../../services/github.service';
+import { userService } from '../../services/user.service';
+import { LinkedAccountCard } from '../../components/account/LinkedAccountCard';
 import { GitHubProfileCard } from '../../components/github/GitHubProfileCard';
 import { GitHubStatsCard } from '../../components/github/GitHubStatsCard';
 import { RepositoryList } from '../../components/github/RepositoryList';
@@ -41,6 +44,12 @@ export const GitHubAnalyticsPage: React.FC = () => {
   const [languages, setLanguages] = useState<LanguageStatisticsResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Linked account state (persisted on the backend for the authenticated user).
+  const [connectedUsername, setConnectedUsername] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   /** Fetches profile, repositories, and language statistics in parallel. */
   const fetchGitHub = useCallback(async (username: string) => {
@@ -81,6 +90,59 @@ export const GitHubAnalyticsPage: React.FC = () => {
     // left `searchedUsername` pointing at the previously loaded username.
     fetchGitHub(searchInput);
   };
+
+  // Load the linked GitHub username once on mount.
+  useEffect(() => {
+    userService
+      .getCurrentUser()
+      .then((currentUser) => setConnectedUsername(currentUser.githubUsername))
+      .catch(() => {
+        // Account linking is supplementary — keep the disconnected state.
+      });
+  }, []);
+
+  /** Saves the entered username as the linked GitHub account. */
+  const handleConnect = useCallback(async (username: string) => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      await userService.connectGitHub(username);
+      setConnectedUsername(username);
+      toast.success(MESSAGES.GITHUB_CONNECTED);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, MESSAGES.ACCOUNT_CONNECT_ERROR('GitHub')));
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  /** Re-fetches the connected account's latest data using the existing search flow. */
+  const handleRefresh = useCallback(async () => {
+    if (!connectedUsername) return;
+    setIsRefreshing(true);
+    await fetchGitHub(connectedUsername);
+    setIsRefreshing(false);
+  }, [connectedUsername, fetchGitHub]);
+
+  /** Removes the linked username and clears cached search data. */
+  const handleDisconnect = useCallback(async () => {
+    setIsDisconnecting(true);
+    setError(null);
+    try {
+      await userService.disconnectGitHub();
+      setConnectedUsername(null);
+      // Clear cached data so the page returns to its initial state.
+      setSearchedUsername(null);
+      setProfile(null);
+      setRepositories([]);
+      setLanguages([]);
+      toast.success(MESSAGES.GITHUB_DISCONNECTED);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, MESSAGES.ACCOUNT_DISCONNECT_ERROR('GitHub')));
+    } finally {
+      setIsDisconnecting(false);
+    }
+  }, []);
 
   // ---- Content area state machine ----
   let content: React.ReactNode;
@@ -156,6 +218,19 @@ export const GitHubAnalyticsPage: React.FC = () => {
           Enter any GitHub username to view their public profile, repositories, and language usage.
         </p>
       </div>
+
+      {/* Linked account section */}
+      <LinkedAccountCard
+        platform="GitHub"
+        icon={<Github className="h-4 w-4" />}
+        username={connectedUsername}
+        isConnecting={isConnecting}
+        isRefreshing={isRefreshing}
+        isDisconnecting={isDisconnecting}
+        onConnect={handleConnect}
+        onRefresh={handleRefresh}
+        onDisconnect={handleDisconnect}
+      />
 
       {/* Username search */}
       <form

@@ -32,4 +32,7 @@ export interface LeetCodeProfileResponse {
 
   /** The user's global ranking on LeetCode, or null if unavailable. */
   ranking: number | null;
+
+  /** The user's overall acceptance rate as a percentage, or null if unavailable. */
+  acceptanceRate: number | null;
 }

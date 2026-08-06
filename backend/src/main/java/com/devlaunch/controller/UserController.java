@@ -1,12 +1,14 @@
 package com.devlaunch.controller;
 
 import com.devlaunch.dto.request.ChangePasswordRequest;
+import com.devlaunch.dto.request.LinkedAccountRequest;
 import com.devlaunch.dto.request.UpdateUserRequest;
 import com.devlaunch.dto.response.UserResponse;
 import com.devlaunch.service.interfaces.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -86,6 +88,80 @@ public class UserController {
             @Valid @RequestBody final ChangePasswordRequest request) {
         userService.changePassword(request);
         return ResponseEntity.ok("Password updated successfully.");
+    }
+
+    /**
+     * Links a GitHub username to the currently authenticated user.
+     * <p>
+     * Accepts the username to save, validates the input, and delegates
+     * the operation to {@link UserService#connectGitHub(String)}. No OAuth
+     * flow is performed — only the username is persisted.
+     * </p>
+     *
+     * @param request the request containing the GitHub username
+     * @return a {@link ResponseEntity} containing the updated user
+     *         profile with HTTP status 200 (OK)
+     */
+    @PutMapping("/me/github")
+    public ResponseEntity<UserResponse> connectGitHub(
+            @Valid @RequestBody final LinkedAccountRequest request) {
+        UserResponse response = userService.connectGitHub(request.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Removes the linked GitHub username from the currently authenticated
+     * user.
+     * <p>
+     * Delegates to {@link UserService#disconnectGitHub()} so the saved
+     * username is cleared and the dashboard returns to the "no account
+     * connected" state.
+     * </p>
+     *
+     * @return a {@link ResponseEntity} containing the updated user
+     *         profile with HTTP status 200 (OK)
+     */
+    @DeleteMapping("/me/github")
+    public ResponseEntity<UserResponse> disconnectGitHub() {
+        UserResponse response = userService.disconnectGitHub();
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Links a LeetCode username to the currently authenticated user.
+     * <p>
+     * Accepts the username to save, validates the input, and delegates
+     * the operation to {@link UserService#connectLeetCode(String)}. No OAuth
+     * flow is performed — only the username is persisted.
+     * </p>
+     *
+     * @param request the request containing the LeetCode username
+     * @return a {@link ResponseEntity} containing the updated user
+     *         profile with HTTP status 200 (OK)
+     */
+    @PutMapping("/me/leetcode")
+    public ResponseEntity<UserResponse> connectLeetCode(
+            @Valid @RequestBody final LinkedAccountRequest request) {
+        UserResponse response = userService.connectLeetCode(request.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Removes the linked LeetCode username from the currently
+     * authenticated user.
+     * <p>
+     * Delegates to {@link UserService#disconnectLeetCode()} so the saved
+     * username is cleared and the dashboard returns to the "no account
+     * connected" state.
+     * </p>
+     *
+     * @return a {@link ResponseEntity} containing the updated user
+     *         profile with HTTP status 200 (OK)
+     */
+    @DeleteMapping("/me/leetcode")
+    public ResponseEntity<UserResponse> disconnectLeetCode() {
+        UserResponse response = userService.disconnectLeetCode();
+        return ResponseEntity.ok(response);
     }
 
 }

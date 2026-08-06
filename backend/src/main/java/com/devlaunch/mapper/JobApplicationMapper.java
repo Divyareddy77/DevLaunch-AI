@@ -43,16 +43,25 @@ public interface JobApplicationMapper {
      * Maps a JobApplication entity to a job application response DTO.
      * <p>
      * All matching fields (id, companyName, jobRole, companyLocation,
-     * jobType, salary, applicationDate, status, jobUrl, notes) are
-     * auto-mapped. The resume ID is explicitly mapped from the nested
-     * resume association. Internal fields such as the user association
-     * and timestamps are excluded from the response.
+     * jobType, salary, applicationDate, status, jobUrl, companyWebsite,
+     * recruiterName, recruiterEmail, referral, workMode, priority,
+     * technology, notes) are auto-mapped. The resume ID is explicitly
+     * mapped from the nested resume association. The timeline, interviews,
+     * upcoming interview, and summary counts are populated by the service
+     * layer from the related repositories and therefore ignored here.
+     * Internal fields such as the user association and timestamps are
+     * excluded from the response.
      * </p>
      *
      * @param jobApplication the job application entity to map from
      * @return a job application response DTO with the entity's data
      */
     @Mapping(target = "resumeId", source = "resume.id")
+    @Mapping(target = "timeline", ignore = true)
+    @Mapping(target = "interviews", ignore = true)
+    @Mapping(target = "upcomingInterview", ignore = true)
+    @Mapping(target = "notesCount", ignore = true)
+    @Mapping(target = "attachmentCount", ignore = true)
     JobApplicationResponse toJobApplicationResponse(JobApplication jobApplication);
 
 }

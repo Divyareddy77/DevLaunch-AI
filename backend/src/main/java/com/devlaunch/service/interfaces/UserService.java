@@ -49,6 +49,68 @@ public interface UserService {
     UserResponse updateCurrentUser(UpdateUserRequest request);
 
     /**
+     * Links a GitHub username to the currently authenticated user.
+     * <p>
+     * Stores the username on the user so the dashboard and GitHub
+     * Analytics page reuse the same linked account. Creates a
+     * notification confirming the connection.
+     * </p>
+     *
+     * @param username the GitHub username to save (leading/trailing
+     *                 whitespace is trimmed)
+     * @return the updated user profile data
+     * @throws ResourceNotFoundException if the authenticated user
+     *                                   is not found in the database
+     */
+    UserResponse connectGitHub(String username);
+
+    /**
+     * Removes the linked GitHub username from the currently
+     * authenticated user.
+     * <p>
+     * Clears the saved username so the dashboard returns to the
+     * "no account connected" state. Creates a notification confirming
+     * the disconnection.
+     * </p>
+     *
+     * @return the updated user profile data
+     * @throws ResourceNotFoundException if the authenticated user
+     *                                   is not found in the database
+     */
+    UserResponse disconnectGitHub();
+
+    /**
+     * Links a LeetCode username to the currently authenticated user.
+     * <p>
+     * Stores the username on the user so the dashboard and LeetCode
+     * Tracker page reuse the same linked account. Creates a
+     * notification confirming the connection.
+     * </p>
+     *
+     * @param username the LeetCode username to save (leading/trailing
+     *                 whitespace is trimmed)
+     * @return the updated user profile data
+     * @throws ResourceNotFoundException if the authenticated user
+     *                                   is not found in the database
+     */
+    UserResponse connectLeetCode(String username);
+
+    /**
+     * Removes the linked LeetCode username from the currently
+     * authenticated user.
+     * <p>
+     * Clears the saved username so the dashboard returns to the
+     * "no account connected" state. Creates a notification confirming
+     * the disconnection.
+     * </p>
+     *
+     * @return the updated user profile data
+     * @throws ResourceNotFoundException if the authenticated user
+     *                                   is not found in the database
+     */
+    UserResponse disconnectLeetCode();
+
+    /**
      * Changes the password of the currently authenticated user.
      * <p>
      * Verifies the supplied current password against the stored hash.

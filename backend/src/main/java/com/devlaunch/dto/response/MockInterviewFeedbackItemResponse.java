@@ -12,8 +12,8 @@ import java.util.List;
  * Response DTO for the AI feedback on a single interview answer.
  * <p>
  * Contains the question that was asked, the user's answer, a per-answer
- * score (0–100), a written assessment, and specific suggestions for
- * improvement.
+ * score (0–100), a written assessment, specific suggestions for
+ * improvement, and a sample improved answer.
  * </p>
  *
  * @author DevLaunch
@@ -54,5 +54,11 @@ public class MockInterviewFeedbackItemResponse {
      * Specific suggestions to improve this answer.
      */
     private List<String> suggestions;
+
+    /**
+     * A sample improved answer, or {@code null} when the answer already
+     * covered the key concepts.
+     */
+    private String improvedAnswer;
 
 }

@@ -3,19 +3,23 @@ package com.devlaunch.service.interfaces;
 import com.devlaunch.dto.request.MockInterviewStartRequest;
 import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
+import com.devlaunch.dto.response.MockInterviewCategoryResponse;
 import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.exception.ResourceNotFoundException;
 
+import java.util.List;
+
 /**
  * Service interface for AI-powered features.
  * <p>
  * Defines the contract for AI-driven operations: resume review (analysing
  * an existing resume owned by the authenticated user) and mock interviews
- * (generating practice questions, evaluating the user's answers, and
- * returning their practice history).
+ * (generating practice questions, evaluating the user's answers, returning
+ * their practice history, exposing per-category statistics, and allowing
+ * sessions to be removed from the history).
  * </p>
  *
  * @author DevLaunch
@@ -40,7 +44,7 @@ public interface AiService {
     ResumeReviewResponse reviewResume(ResumeReviewRequest request);
 
     /**
-     * Starts a new mock interview session for the given category.
+     * Starts a new mock interview session for the given configuration.
      * <p>
      * Generates a set of interview questions using the configured AI
      * provider (falling back to the deterministic question bank) and
@@ -48,7 +52,8 @@ public interface AiService {
      * answers later.
      * </p>
      *
-     * @param request the start request containing the interview category
+     * @param request the start request containing the interview category,
+     *                difficulty, question length, and timed flag
      * @return the generated questions and session identifier
      */
     MockInterviewStartResponse startMockInterview(MockInterviewStartRequest request);
@@ -57,22 +62,43 @@ public interface AiService {
      * Submits the answers of a mock interview session for AI evaluation.
      * <p>
      * Evaluates each answer with the configured AI provider (falling back
-     * to deterministic heuristics), persists the completed session to the
-     * user's interview history, and returns the structured feedback.
+     * to deterministic heuristics), persists the completed session with
+     * its full report to the user's interview history, and returns the
+     * structured feedback.
      * </p>
      *
      * @param request the submit request containing the session identifier,
-     *                category, and question/answer pairs
+     *                category, configuration, and question/answer pairs
      * @return the structured interview feedback
      */
     MockInterviewFeedbackResponse submitMockInterview(MockInterviewSubmitRequest request);
 
     /**
      * Retrieves the authenticated user's completed interview history,
-     * ordered most recent first.
+     * ordered most recent first, together with the aggregate statistics
+     * that power the landing page and analytics views.
      *
      * @return the interview history with summary statistics
      */
     MockInterviewHistoryResponse getMockInterviewHistory();
+
+    /**
+     * Retrieves per-category statistics for the landing page: the question
+     * bank size together with the authenticated user's practice history
+     * for each category.
+     *
+     * @return the per-category statistics
+     */
+    List<MockInterviewCategoryResponse> getMockInterviewCategories();
+
+    /**
+     * Deletes a completed interview session from the authenticated user's
+     * history.
+     *
+     * @param sessionId the client-generated session identifier to delete
+     * @throws ResourceNotFoundException if the session is not found or does
+     *                                   not belong to the authenticated user
+     */
+    void deleteMockInterview(String sessionId);
 
 }

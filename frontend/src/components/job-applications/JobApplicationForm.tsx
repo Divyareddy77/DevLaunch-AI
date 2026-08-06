@@ -3,6 +3,9 @@
  *
  * Uses React Hook Form + Zod validation matching the backend
  * CreateJobApplicationRequest / UpdateJobApplicationRequest constraints.
+ * Covers the core fields plus the placement management extras: company
+ * website, recruiter details, referral, work mode, priority, and
+ * technology stack.
  *
  * @author DevLaunch
  */
@@ -18,8 +21,12 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ROUTES } from '../../constants/routes';
 import {
+  APPLICATION_PRIORITIES,
+  APPLICATION_PRIORITY_LABELS,
   APPLICATION_STATUSES,
   APPLICATION_STATUS_LABELS,
+  WORK_MODES,
+  WORK_MODE_LABELS,
   type JobApplicationResponse,
   type CreateJobApplicationRequest,
 } from '../../types/job-application';
@@ -33,13 +40,24 @@ const jobApplicationSchema = z.object({
   applicationDate: z.string().optional(),
   status: z.string().min(1, 'Status is required'),
   jobUrl: z.string().url('Please enter a valid URL').or(z.literal('')).optional(),
+  companyWebsite: z.string().url('Please enter a valid URL').or(z.literal('')).optional(),
+  recruiterName: z.string().optional(),
+  recruiterEmail: z
+    .string()
+    .email('Please enter a valid email address')
+    .or(z.literal(''))
+    .optional(),
+  referral: z.string().optional(),
+  workMode: z.string().optional(),
+  priority: z.string().optional(),
+  technology: z.string().optional(),
   notes: z.string().optional(),
   resumeId: z.number().optional(),
 });
 
 export type JobApplicationFormValues = z.infer<typeof jobApplicationSchema>;
 
-const JOB_TYPE_OPTIONS = ['', 'Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship', 'Remote'];
+const JOB_TYPE_OPTIONS = ['', 'Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship'];
 
 interface JobApplicationFormProps {
   /** Initial data for edit mode. */
@@ -49,6 +67,9 @@ interface JobApplicationFormProps {
   /** Callback with form values on save. */
   onSubmit: (data: CreateJobApplicationRequest) => void;
 }
+
+const selectClass =
+  'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500';
 
 export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
   initialData,
@@ -73,6 +94,13 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
           applicationDate: initialData.applicationDate ?? '',
           status: initialData.status,
           jobUrl: initialData.jobUrl ?? '',
+          companyWebsite: initialData.companyWebsite ?? '',
+          recruiterName: initialData.recruiterName ?? '',
+          recruiterEmail: initialData.recruiterEmail ?? '',
+          referral: initialData.referral ?? '',
+          workMode: initialData.workMode ?? '',
+          priority: initialData.priority,
+          technology: initialData.technology ?? '',
           notes: initialData.notes ?? '',
           resumeId: initialData.resumeId ?? undefined,
         }
@@ -85,6 +113,13 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
           applicationDate: '',
           status: 'WISHLIST',
           jobUrl: '',
+          companyWebsite: '',
+          recruiterName: '',
+          recruiterEmail: '',
+          referral: '',
+          workMode: '',
+          priority: 'MEDIUM',
+          technology: '',
           notes: '',
         },
   });
@@ -143,12 +178,9 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
             />
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                Job Type
+                Employment Type
               </label>
-              <select
-                className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                {...register('jobType')}
-              >
+              <select className={selectClass} {...register('jobType')}>
                 {JOB_TYPE_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt || 'Select…'}
@@ -158,10 +190,35 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
             </div>
           </div>
 
+          {/* Work mode & Priority */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Work Mode</label>
+              <select className={selectClass} {...register('workMode')}>
+                <option value="">Select…</option>
+                {WORK_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {WORK_MODE_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Priority</label>
+              <select className={selectClass} {...register('priority')}>
+                {APPLICATION_PRIORITIES.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {APPLICATION_PRIORITY_LABELS[priority]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Salary & Application Date */}
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
-              label="Salary / Compensation"
+              label="Expected Salary"
               placeholder="e.g. $80,000 - $100,000"
               {...register('salary')}
             />
@@ -177,10 +234,7 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Status <span className="text-red-500">*</span>
             </label>
-            <select
-              className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              {...register('status')}
-            >
+            <select className={selectClass} {...register('status')}>
               {APPLICATION_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {APPLICATION_STATUS_LABELS[status]}
@@ -194,13 +248,54 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
             )}
           </div>
 
-          {/* Job URL */}
-          <Input
-            label="Job Posting URL"
-            placeholder="https://careers.company.com/job/123"
-            error={errors.jobUrl?.message}
-            {...register('jobUrl')}
-          />
+          {/* Job URL & Company website */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Job Posting URL"
+              placeholder="https://careers.company.com/job/123"
+              error={errors.jobUrl?.message}
+              {...register('jobUrl')}
+            />
+            <Input
+              label="Company Website"
+              placeholder="https://www.company.com"
+              error={errors.companyWebsite?.message}
+              {...register('companyWebsite')}
+            />
+          </div>
+
+          {/* Recruiter */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Recruiter Name"
+              placeholder="e.g. Rahul Sharma"
+              error={errors.recruiterName?.message}
+              {...register('recruiterName')}
+            />
+            <Input
+              label="Recruiter Email"
+              type="email"
+              placeholder="rahul@company.com"
+              error={errors.recruiterEmail?.message}
+              {...register('recruiterEmail')}
+            />
+          </div>
+
+          {/* Referral & Technology */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Referral"
+              placeholder="e.g. Priya (employee referral)"
+              error={errors.referral?.message}
+              {...register('referral')}
+            />
+            <Input
+              label="Technology Stack"
+              placeholder="e.g. Java, Spring Boot, React"
+              error={errors.technology?.message}
+              {...register('technology')}
+            />
+          </div>
 
           {/* Notes */}
           <div>

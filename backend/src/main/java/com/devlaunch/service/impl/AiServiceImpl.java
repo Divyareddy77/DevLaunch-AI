@@ -4,17 +4,19 @@ import com.devlaunch.dto.request.MockInterviewAnswerRequest;
 import com.devlaunch.dto.request.MockInterviewStartRequest;
 import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
+import com.devlaunch.dto.response.CategoryScoreResponse;
+import com.devlaunch.dto.response.ExperienceAnalysisResponse;
+import com.devlaunch.dto.response.MockInterviewCategoryResponse;
 import com.devlaunch.dto.response.MockInterviewFeedbackItemResponse;
 import com.devlaunch.dto.response.MockInterviewFeedbackResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewQuestionResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
-import com.devlaunch.dto.response.CategoryScoreResponse;
-import com.devlaunch.dto.response.ExperienceAnalysisResponse;
 import com.devlaunch.dto.response.ProjectAnalysisResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.dto.response.ResumeReviewSuggestion;
+import com.devlaunch.dto.response.ScoreTrendPoint;
 import com.devlaunch.dto.response.SkillsAnalysisResponse;
 import com.devlaunch.dto.response.SummaryAnalysisResponse;
 import com.devlaunch.entity.Achievement;
@@ -28,6 +30,7 @@ import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.InterviewDifficulty;
 import com.devlaunch.entity.enums.InterviewType;
 import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
@@ -49,6 +52,7 @@ import com.devlaunch.service.ai.ResumeContent;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
 import com.devlaunch.service.interfaces.AiService;
+import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.util.EnumLabels;
 import org.slf4j.Logger;
@@ -62,9 +66,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link AiService} providing AI-powered resume review
@@ -75,10 +83,11 @@ import java.util.UUID;
  * snapshot, and delegates the analysis to a {@link ResumeReviewProvider}.
  * For mock interviews, delegates question generation and answer
  * evaluation to a {@link MockInterviewProvider} and persists completed
- * sessions to the user's interview history. In both cases the primary LLM
- * provider is preferred when configured; on any failure or when no
- * provider is configured, the deterministic sample provider is used so
- * the features remain fully functional.
+ * sessions — including the full report — to the user's interview history,
+ * firing milestone notifications through the existing notification module.
+ * In both cases the primary LLM provider is preferred when configured; on
+ * any failure or when no provider is configured, the deterministic sample
+ * provider is used so the features remain fully functional.
  * </p>
  *
  * @author DevLaunch
@@ -90,6 +99,21 @@ public class AiServiceImpl implements AiService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMM yyyy");
 
+    /** The question length used when the client does not specify one. */
+    private static final int DEFAULT_QUESTION_LENGTH = 10;
+
+    /** Scores at or above this are celebrated as outstanding. */
+    private static final int OUTSTANDING_SCORE = 90;
+
+    /** Scores at or above this count as a successful interview. */
+    private static final int SUCCESS_SCORE = 70;
+
+    /** The number of recent sessions included in the score trend. */
+    private static final int TREND_LIMIT = 10;
+
+    /** Streaks of at least this many days are worth celebrating. */
+    private static final int STREAK_NOTIFICATION_MIN = 2;
+
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final EducationRepository educationRepository;
@@ -100,6 +124,7 @@ public class AiServiceImpl implements AiService {
     private final AchievementRepository achievementRepository;
     private final InterviewSessionRepository interviewSessionRepository;
     private final ResumeReviewRepository resumeReviewRepository;
+    private final InterviewQuestionBankService questionBankService;
     private final ResumeReviewProvider openAiResumeReviewProvider;
     private final ResumeReviewProvider sampleResumeReviewProvider;
     private final MockInterviewProvider openAiMockInterviewProvider;
@@ -119,6 +144,7 @@ public class AiServiceImpl implements AiService {
      * @param achievementRepository        repository for achievement data access
      * @param interviewSessionRepository   repository for interview history data access
      * @param resumeReviewRepository       repository for AI resume review history
+     * @param questionBankService          service for the database question bank
      * @param openAiResumeReviewProvider   the primary LLM resume review provider
      * @param sampleResumeReviewProvider   the deterministic resume review fallback
      * @param openAiMockInterviewProvider  the primary LLM mock interview provider
@@ -135,6 +161,7 @@ public class AiServiceImpl implements AiService {
                          final AchievementRepository achievementRepository,
                          final InterviewSessionRepository interviewSessionRepository,
                          final ResumeReviewRepository resumeReviewRepository,
+                         final InterviewQuestionBankService questionBankService,
                          @Qualifier("openAiResumeReviewProvider")
                          final ResumeReviewProvider openAiResumeReviewProvider,
                          @Qualifier("sampleResumeReviewProvider")
@@ -154,6 +181,7 @@ public class AiServiceImpl implements AiService {
         this.achievementRepository = achievementRepository;
         this.interviewSessionRepository = interviewSessionRepository;
         this.resumeReviewRepository = resumeReviewRepository;
+        this.questionBankService = questionBankService;
         this.openAiResumeReviewProvider = openAiResumeReviewProvider;
         this.sampleResumeReviewProvider = sampleResumeReviewProvider;
         this.openAiMockInterviewProvider = openAiMockInterviewProvider;
@@ -214,14 +242,23 @@ public class AiServiceImpl implements AiService {
     @Override
     @Transactional(readOnly = true)
     public MockInterviewStartResponse startMockInterview(final MockInterviewStartRequest request) {
-        final List<InterviewQuestion> questions = generateQuestions(request.getInterviewType());
+        final InterviewDifficulty difficulty = request.getDifficulty() == null
+                ? InterviewDifficulty.MIXED : request.getDifficulty();
+        final int count = request.getQuestionLength() == null
+                ? DEFAULT_QUESTION_LENGTH : request.getQuestionLength();
+        final boolean timed = Boolean.TRUE.equals(request.getTimed());
 
-        log.info("Mock interview started for type={}: {} questions generated",
-                request.getInterviewType(), questions.size());
+        final List<InterviewQuestion> questions =
+                generateQuestions(request.getInterviewType(), difficulty, count);
+
+        log.info("Mock interview started for type={}, difficulty={}: {} questions generated",
+                request.getInterviewType(), difficulty, questions.size());
 
         return MockInterviewStartResponse.builder()
                 .sessionId(UUID.randomUUID().toString())
                 .interviewType(request.getInterviewType())
+                .difficulty(difficulty)
+                .timed(timed)
                 .questions(questions.stream()
                         .map(this::toQuestionResponse)
                         .toList())
@@ -248,6 +285,7 @@ public class AiServiceImpl implements AiService {
                 .mapToInt(InterviewSession::getOverallScore)
                 .average()
                 .orElse(0.0);
+        final int previousStreak = currentStreak(previousSessions);
 
         final List<InterviewAnswer> answers = request.getAnswers().stream()
                 .map(this::toInterviewAnswer)
@@ -255,16 +293,32 @@ public class AiServiceImpl implements AiService {
 
         final MockInterviewFeedback evaluation = evaluate(request.getInterviewType(), answers);
 
+        final InterviewDifficulty difficulty = request.getDifficulty() == null
+                ? InterviewDifficulty.MIXED : request.getDifficulty();
+        final boolean timed = Boolean.TRUE.equals(request.getTimed());
+        final int wordCount = answers.stream().mapToInt(answer -> wordCount(answer.answer())).sum();
+
         final InterviewSession session = InterviewSession.builder()
                 .sessionId(request.getSessionId())
                 .interviewType(request.getInterviewType())
+                .difficulty(difficulty)
+                .timed(timed)
+                .durationSeconds(request.getDurationSeconds())
+                .wordCount(wordCount)
                 .overallScore(evaluation.overallScore())
                 .questionCount(answers.size())
+                .technicalScore(evaluation.technicalScore())
+                .communicationScore(evaluation.communicationScore())
+                .confidenceScore(evaluation.confidenceScore())
+                .problemSolvingScore(evaluation.problemSolvingScore())
+                .clarityScore(evaluation.clarityScore())
+                .vocabularyScore(evaluation.vocabularyScore())
+                .professionalismScore(evaluation.professionalismScore())
+                .strengths(evaluation.strengths())
+                .areasForImprovement(evaluation.areasForImprovement())
+                .suggestions(evaluation.suggestions())
                 .completedAt(LocalDateTime.now())
-                .questions(request.getAnswers().stream()
-                        .map(answer -> new InterviewSessionQuestion(
-                                answer.getQuestionId(), answer.getQuestion()))
-                        .toList())
+                .questions(snapshotQuestions(request, evaluation))
                 .user(user)
                 .build();
         interviewSessionRepository.save(session);
@@ -275,6 +329,14 @@ public class AiServiceImpl implements AiService {
                 "Your " + EnumLabels.toLabel(request.getInterviewType())
                         + " mock interview scored " + evaluation.overallScore()
                         + "/100. Review the feedback to level up.");
+
+        // Celebrate an outstanding performance
+        if (evaluation.overallScore() >= OUTSTANDING_SCORE) {
+            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
+                    "Outstanding interview score",
+                    "You scored " + evaluation.overallScore()
+                            + "/100 — an outstanding performance. Keep it up!");
+        }
 
         // Celebrate a new personal best over the previous best session
         if (evaluation.overallScore() > previousMaxScore) {
@@ -299,10 +361,21 @@ public class AiServiceImpl implements AiService {
             }
         }
 
+        // Celebrate a growing practice streak
+        final List<InterviewSession> sessionsWithNew = new ArrayList<>(previousSessions);
+        sessionsWithNew.add(session);
+        final int newStreak = currentStreak(sessionsWithNew);
+        if (newStreak >= STREAK_NOTIFICATION_MIN && newStreak > previousStreak) {
+            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
+                    "Interview streak",
+                    "You've practised on " + newStreak + " consecutive day"
+                            + (newStreak == 1 ? "" : "s") + " — consistency builds confidence!");
+        }
+
         log.info("Mock interview submitted for user id={}, type={}: overallScore={}",
                 user.getId(), request.getInterviewType(), evaluation.overallScore());
 
-        return toFeedbackResponse(request.getSessionId(), request.getInterviewType(), evaluation);
+        return toFeedbackResponse(request, evaluation, wordCount);
     }
 
     /**
@@ -320,12 +393,91 @@ public class AiServiceImpl implements AiService {
                 .mapToInt(InterviewSession::getOverallScore)
                 .average()
                 .orElse(0.0);
+        final long totalInterviews = sessions.size();
+        final int bestScore = sessions.stream()
+                .mapToInt(InterviewSession::getOverallScore)
+                .max()
+                .orElse(0);
+        final LocalDateTime lastInterviewAt = sessions.isEmpty()
+                ? null : sessions.getFirst().getCompletedAt();
+        final long totalTimeSpentSeconds = sessions.stream()
+                .mapToLong(session -> session.getDurationSeconds() == null
+                        ? 0L : session.getDurationSeconds())
+                .sum();
+        final long totalQuestionsAnswered = sessions.stream()
+                .mapToLong(InterviewSession::getQuestionCount)
+                .sum();
+        final double successRate = sessions.isEmpty()
+                ? 0.0
+                : Math.round(sessions.stream()
+                        .filter(session -> session.getOverallScore() >= SUCCESS_SCORE)
+                        .count() * 1000.0 / totalInterviews) / 10.0;
 
         return MockInterviewHistoryResponse.builder()
                 .history(sessions.stream().map(this::toHistoryItem).toList())
-                .totalInterviews((long) sessions.size())
+                .totalInterviews((long) totalInterviews)
                 .averageScore(Math.round(average * 10.0) / 10.0)
+                .bestScore(totalInterviews == 0 ? null : bestScore)
+                .lastInterviewAt(lastInterviewAt)
+                .currentStreak(currentStreak(sessions))
+                .mostPracticedCategory(mostPracticedCategory(sessions))
+                .totalTimeSpentSeconds(totalTimeSpentSeconds)
+                .totalQuestionsAnswered(totalQuestionsAnswered)
+                .successRate(successRate)
+                .readinessLevel(readinessLevel(totalInterviews, average))
+                .scoreTrend(sessions.stream()
+                        .limit(TREND_LIMIT)
+                        .map(session -> ScoreTrendPoint.builder()
+                                .completedAt(session.getCompletedAt())
+                                .score(session.getOverallScore())
+                                .build())
+                        .toList())
                 .build();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<MockInterviewCategoryResponse> getMockInterviewCategories() {
+        final User user = getAuthenticatedUser();
+        final List<InterviewSession> sessions =
+                interviewSessionRepository.findByUserOrderByCompletedAtDesc(user);
+
+        final List<MockInterviewCategoryResponse> responses = new ArrayList<>();
+        for (final InterviewType type : InterviewType.values()) {
+            final List<InterviewSession> categorySessions = sessions.stream()
+                    .filter(session -> session.getInterviewType() == type)
+                    .toList();
+            responses.add(MockInterviewCategoryResponse.builder()
+                    .interviewType(type)
+                    .questionBankSize((int) questionBankService.countActive(type))
+                    .attemptCount(categorySessions.size())
+                    .previousBestScore(categorySessions.isEmpty() ? null
+                            : categorySessions.stream()
+                                    .mapToInt(InterviewSession::getOverallScore)
+                                    .max().orElse(0))
+                    .lastAttemptAt(categorySessions.isEmpty() ? null
+                            : categorySessions.getFirst().getCompletedAt())
+                    .build());
+        }
+        return responses;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional
+    public void deleteMockInterview(final String sessionId) {
+        final User user = getAuthenticatedUser();
+        final InterviewSession session = interviewSessionRepository
+                .findBySessionIdAndUser(sessionId, user)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Interview session with id " + sessionId + " not found"));
+        interviewSessionRepository.delete(session);
+        log.info("Mock interview session id={} deleted for user id={}", sessionId, user.getId());
     }
 
     /**
@@ -361,34 +513,43 @@ public class AiServiceImpl implements AiService {
      * errors — such as an empty question bank — surface immediately instead
      * of being swallowed by a pointless second invocation.
      *
-     * @param type the interview category to generate questions for
+     * @param type       the interview category to generate questions for
+     * @param difficulty the difficulty mode of the interview
+     * @param count      the number of questions to generate
      * @return the generated questions
      */
-    private List<InterviewQuestion> generateQuestions(final InterviewType type) {
+    private List<InterviewQuestion> generateQuestions(final InterviewType type,
+                                                      final InterviewDifficulty difficulty,
+                                                      final int count) {
         if (openAiMockInterviewProvider.isConfigured()) {
             try {
-                return generateFrom(openAiMockInterviewProvider, type);
+                return generateFrom(openAiMockInterviewProvider, type, difficulty, count);
             } catch (final RuntimeException e) {
                 log.warn("OpenAI mock interview provider failed to generate questions, "
                                 + "falling back to the question bank: {}",
                         e.getMessage());
             }
         }
-        return generateFrom(sampleMockInterviewProvider, type);
+        return generateFrom(sampleMockInterviewProvider, type, difficulty, count);
     }
 
     /**
      * Invokes a provider's question generation and guards against an empty
      * result.
      *
-     * @param provider the provider to invoke
-     * @param type     the interview category to generate questions for
+     * @param provider   the provider to invoke
+     * @param type       the interview category to generate questions for
+     * @param difficulty the difficulty mode of the interview
+     * @param count      the number of questions to generate
      * @return the generated questions
      * @throws IllegalStateException if the provider returns no questions
      */
     private List<InterviewQuestion> generateFrom(final MockInterviewProvider provider,
-                                                 final InterviewType type) {
-        final List<InterviewQuestion> questions = provider.generateQuestions(type);
+                                                 final InterviewType type,
+                                                 final InterviewDifficulty difficulty,
+                                                 final int count) {
+        final List<InterviewQuestion> questions =
+                provider.generateQuestions(type, difficulty, count);
         if (questions.isEmpty()) {
             throw new IllegalStateException("Provider returned no questions");
         }
@@ -421,6 +582,120 @@ public class AiServiceImpl implements AiService {
     }
 
     /**
+     * Snapshots the session questions together with their evaluation so
+     * the history can always render the original report.
+     *
+     * @param request    the submit request carrying the raw answers
+     * @param evaluation the evaluation result
+     * @return the snapshotted question entries
+     */
+    private List<InterviewSessionQuestion> snapshotQuestions(
+            final MockInterviewSubmitRequest request,
+            final MockInterviewFeedback evaluation) {
+        return request.getAnswers().stream()
+                .map(answer -> {
+                    final MockInterviewFeedback.Item item = evaluation.feedback().stream()
+                            .filter(feedback -> feedback.questionId().equals(answer.getQuestionId()))
+                            .findFirst()
+                            .orElse(null);
+                    return new InterviewSessionQuestion(
+                            answer.getQuestionId(),
+                            answer.getQuestion(),
+                            answer.getAnswer(),
+                            item == null ? null : item.score(),
+                            item == null ? null : item.feedback(),
+                            item == null ? null : item.improvedAnswer());
+                })
+                .toList();
+    }
+
+    /**
+     * Counts the words in a piece of text.
+     */
+    private int wordCount(final String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        return text.trim().split("\\s+").length;
+    }
+
+    /**
+     * Computes the current practice streak: the number of consecutive days
+     * (ending today or yesterday) with at least one completed interview.
+     *
+     * @param sessions the user's completed interview sessions
+     * @return the streak length in days
+     */
+    private int currentStreak(final List<InterviewSession> sessions) {
+        final TreeSet<LocalDate> practiceDays = new TreeSet<>();
+        for (final InterviewSession session : sessions) {
+            if (session.getCompletedAt() != null) {
+                practiceDays.add(session.getCompletedAt().toLocalDate());
+            }
+        }
+        if (practiceDays.isEmpty()) {
+            return 0;
+        }
+
+        final LocalDate today = LocalDate.now();
+        LocalDate cursor = today;
+        if (!practiceDays.contains(cursor)) {
+            cursor = cursor.minusDays(1);
+            if (!practiceDays.contains(cursor)) {
+                return 0;
+            }
+        }
+
+        int streak = 0;
+        while (practiceDays.contains(cursor)) {
+            streak++;
+            cursor = cursor.minusDays(1);
+        }
+        return streak;
+    }
+
+    /**
+     * Returns the category with the most completed interviews, or
+     * {@code null} when no interview has been completed yet.
+     *
+     * @param sessions the user's completed interview sessions
+     * @return the most practised category, or {@code null}
+     */
+    private InterviewType mostPracticedCategory(final List<InterviewSession> sessions) {
+        final Map<InterviewType, Long> counts = sessions.stream()
+                .collect(Collectors.groupingBy(
+                        InterviewSession::getInterviewType, Collectors.counting()));
+        return counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    /**
+     * Derives a human-readable interview readiness level from the total
+     * interview count and the average score.
+     *
+     * @param totalInterviews the number of completed interviews
+     * @param averageScore    the average score across all interviews
+     * @return the readiness level label
+     */
+    private String readinessLevel(final long totalInterviews, final double averageScore) {
+        if (totalInterviews == 0) {
+            return "Getting Started";
+        }
+        if (averageScore >= 90) {
+            return "Exceptional";
+        }
+        if (averageScore >= 75) {
+            return "Interview Ready";
+        }
+        if (averageScore >= 60) {
+            return "Improving";
+        }
+        return "Developing";
+    }
+
+    /**
      * Maps a request answer DTO to the internal {@link InterviewAnswer}.
      */
     private InterviewAnswer toInterviewAnswer(final MockInterviewAnswerRequest answer) {
@@ -429,16 +704,17 @@ public class AiServiceImpl implements AiService {
 
     /**
      * Maps the internal evaluation result to the public feedback response
-     * DTO, attaching the session and category identifiers.
+     * DTO, attaching the session, category, and configuration identifiers.
      *
-     * @param sessionId  the session identifier of the interview
-     * @param type       the interview category
+     * @param request    the submit request
      * @param evaluation the internal evaluation result
+     * @param wordCount  the total word count across all answers
      * @return the public feedback response DTO
      */
     private MockInterviewFeedbackResponse toFeedbackResponse(
-            final String sessionId, final InterviewType type,
-            final MockInterviewFeedback evaluation) {
+            final MockInterviewSubmitRequest request,
+            final MockInterviewFeedback evaluation,
+            final int wordCount) {
         final List<MockInterviewFeedbackItemResponse> items = evaluation.feedback().stream()
                 .map(item -> MockInterviewFeedbackItemResponse.builder()
                         .questionId(item.questionId())
@@ -447,22 +723,37 @@ public class AiServiceImpl implements AiService {
                         .score(item.score())
                         .feedback(item.feedback())
                         .suggestions(item.suggestions())
+                        .improvedAnswer(item.improvedAnswer())
                         .build())
                 .toList();
 
         return MockInterviewFeedbackResponse.builder()
-                .sessionId(sessionId)
-                .interviewType(type)
+                .sessionId(request.getSessionId())
+                .interviewType(request.getInterviewType())
+                .difficulty(request.getDifficulty() == null
+                        ? InterviewDifficulty.MIXED : request.getDifficulty())
+                .timed(Boolean.TRUE.equals(request.getTimed()))
+                .durationSeconds(request.getDurationSeconds())
+                .wordCount(wordCount)
                 .overallScore(evaluation.overallScore())
+                .technicalScore(evaluation.technicalScore())
+                .communicationScore(evaluation.communicationScore())
+                .confidenceScore(evaluation.confidenceScore())
+                .problemSolvingScore(evaluation.problemSolvingScore())
+                .clarityScore(evaluation.clarityScore())
+                .vocabularyScore(evaluation.vocabularyScore())
+                .professionalismScore(evaluation.professionalismScore())
                 .feedback(items)
                 .strengths(evaluation.strengths())
                 .areasForImprovement(evaluation.areasForImprovement())
+                .suggestions(evaluation.suggestions())
+                .missedConcepts(evaluation.missedConcepts())
                 .build();
     }
 
     /**
      * Maps an {@link InterviewSession} entity to the public history item
-     * DTO.
+     * DTO, including the full snapshotted report.
      *
      * @param session the completed interview session
      * @return the public history item DTO
@@ -472,14 +763,40 @@ public class AiServiceImpl implements AiService {
                 ? List.of()
                 : session.getQuestions().stream().map(this::toQuestionResponse).toList();
 
+        final List<String> strengths = safeList(session.getStrengths());
+        final List<String> improvements = safeList(session.getAreasForImprovement());
+        final List<String> suggestions = safeList(session.getSuggestions());
+
         return MockInterviewHistoryItemResponse.builder()
                 .sessionId(session.getSessionId())
                 .interviewType(session.getInterviewType())
+                .difficulty(session.getDifficulty())
+                .timed(session.getTimed())
+                .durationSeconds(session.getDurationSeconds())
                 .completedAt(session.getCompletedAt())
                 .overallScore(session.getOverallScore())
                 .questionCount(session.getQuestionCount())
+                .wordCount(session.getWordCount())
+                .technicalScore(session.getTechnicalScore())
+                .communicationScore(session.getCommunicationScore())
+                .confidenceScore(session.getConfidenceScore())
+                .problemSolvingScore(session.getProblemSolvingScore())
+                .clarityScore(session.getClarityScore())
+                .vocabularyScore(session.getVocabularyScore())
+                .professionalismScore(session.getProfessionalismScore())
+                .strengths(strengths)
+                .areasForImprovement(improvements)
+                .suggestions(suggestions)
                 .questions(questions)
                 .build();
+    }
+
+    /**
+     * Returns an immutable copy of the list, or an empty list when the
+     * collection is {@code null}.
+     */
+    private List<String> safeList(final List<String> values) {
+        return values == null ? List.of() : List.copyOf(values);
     }
 
     /**
@@ -491,11 +808,13 @@ public class AiServiceImpl implements AiService {
                 .id(question.id())
                 .question(question.question())
                 .hint(question.hint())
+                .difficulty(question.difficulty())
                 .build();
     }
 
     /**
-     * Maps a snapshotted session question to the public response DTO.
+     * Maps a snapshotted session question to the public response DTO,
+     * including the stored answer and evaluation for the history report.
      */
     private MockInterviewQuestionResponse toQuestionResponse(
             final InterviewSessionQuestion question) {
@@ -503,6 +822,10 @@ public class AiServiceImpl implements AiService {
                 .id(question.getQuestionId())
                 .question(question.getQuestion())
                 .hint(null)
+                .answer(question.getAnswer())
+                .score(question.getScore())
+                .feedback(question.getFeedback())
+                .improvedAnswer(question.getImprovedAnswer())
                 .build();
     }
 

@@ -5,6 +5,7 @@ import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
 import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
+import com.devlaunch.dto.response.MockInterviewCategoryResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.InterviewSessionQuestion;
@@ -27,6 +28,7 @@ import com.devlaunch.service.ai.MockInterviewFeedback;
 import com.devlaunch.service.ai.MockInterviewProvider;
 import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
+import com.devlaunch.service.interfaces.InterviewQuestionBankService;
 import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -111,6 +113,9 @@ class AiServiceImplTest {
     private MockInterviewProvider openAiMockInterviewProvider;
 
     @Mock
+    private InterviewQuestionBankService questionBankService;
+
+    @Mock
     private NotificationService notificationService;
 
     private AiServiceImpl service;
@@ -120,7 +125,7 @@ class AiServiceImplTest {
         service = new AiServiceImpl(
                 resumeRepository, userRepository, educationRepository, experienceRepository,
                 skillRepository, projectRepository, certificationRepository, achievementRepository,
-                interviewSessionRepository, resumeReviewRepository,
+                interviewSessionRepository, resumeReviewRepository, questionBankService,
                 openAiResumeReviewProvider, sampleResumeReviewProvider,
                 openAiMockInterviewProvider, sampleMockInterviewProvider,
                 notificationService);
@@ -163,13 +168,16 @@ class AiServiceImplTest {
     private MockInterviewFeedback feedback() {
         return new MockInterviewFeedback(
                 70,
+                70, 75, 68, 70, 72, 66, 74,
                 List.of(
                         new MockInterviewFeedback.Item("101", "What are React hooks?",
-                                "Hooks let function components use state.", 80, "Good", List.of()),
+                                "Hooks let function components use state.", 80, "Good", List.of(), null),
                         new MockInterviewFeedback.Item("102", "Explain the virtual DOM.",
-                                "React diffs a virtual tree before rendering.", 60, "OK", List.of())),
+                                "React diffs a virtual tree before rendering.", 60, "OK", List.of(), null)),
                 List.of("Solid hooks answer"),
-                List.of("Deepen the virtual DOM explanation"));
+                List.of("Deepen the virtual DOM explanation"),
+                List.of("Practice React Hooks."),
+                List.of());
     }
 
     @Test
@@ -233,6 +241,95 @@ class AiServiceImplTest {
         assertEquals("101", item.getQuestions().get(0).getId());
         assertEquals("What are React hooks?", item.getQuestions().get(0).getQuestion());
         assertEquals("Explain the virtual DOM.", item.getQuestions().get(1).getQuestion());
+    }
+
+    @Test
+    @DisplayName("deleting a mock interview removes the session from history")
+    void deleteRemovesSessionFromHistory() {
+        authenticate();
+        final User user = user();
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+
+        final InterviewSession session = InterviewSession.builder()
+                .sessionId("session-1")
+                .interviewType(InterviewType.REACT)
+                .overallScore(70)
+                .questionCount(2)
+                .build();
+        when(interviewSessionRepository.findBySessionIdAndUser("session-1", user))
+                .thenReturn(Optional.of(session));
+
+        service.deleteMockInterview("session-1");
+
+        verify(interviewSessionRepository).delete(session);
+    }
+
+    @Test
+    @DisplayName("history aggregates best score, streak, and readiness level")
+    void historyAggregatesStatistics() {
+        authenticate();
+        final User user = user();
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+
+        final InterviewSession latest = InterviewSession.builder()
+                .sessionId("s2")
+                .interviewType(InterviewType.JAVA)
+                .overallScore(75)
+                .questionCount(5)
+                .completedAt(LocalDateTime.now())
+                .build();
+        final InterviewSession previous = InterviewSession.builder()
+                .sessionId("s1")
+                .interviewType(InterviewType.JAVA)
+                .overallScore(88)
+                .questionCount(5)
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .build();
+        when(interviewSessionRepository.findByUserOrderByCompletedAtDesc(user))
+                .thenReturn(List.of(latest, previous));
+
+        final MockInterviewHistoryResponse response = service.getMockInterviewHistory();
+
+        assertEquals(2, response.getTotalInterviews());
+        assertEquals(88, response.getBestScore());
+        assertEquals(81.5, response.getAverageScore());
+        assertEquals(InterviewType.JAVA, response.getMostPracticedCategory());
+        assertEquals(2, response.getCurrentStreak());
+        assertEquals(100.0, response.getSuccessRate());
+        assertEquals("Interview Ready", response.getReadinessLevel());
+        assertEquals(2, response.getScoreTrend().size());
+    }
+
+    @Test
+    @DisplayName("category statistics combine bank size and personal history")
+    void categoryStatisticsCombineBankAndHistory() {
+        authenticate();
+        final User user = user();
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+        when(questionBankService.countActive(any(InterviewType.class))).thenReturn(0L);
+        when(questionBankService.countActive(InterviewType.JAVA)).thenReturn(42L);
+
+        final InterviewSession javaSession = InterviewSession.builder()
+                .sessionId("s1")
+                .interviewType(InterviewType.JAVA)
+                .overallScore(80)
+                .questionCount(5)
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .build();
+        when(interviewSessionRepository.findByUserOrderByCompletedAtDesc(user))
+                .thenReturn(List.of(javaSession));
+
+        final List<MockInterviewCategoryResponse> responses =
+                service.getMockInterviewCategories();
+
+        final MockInterviewCategoryResponse java = responses.stream()
+                .filter(response -> response.getInterviewType() == InterviewType.JAVA)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(42, java.getQuestionBankSize());
+        assertEquals(1, java.getAttemptCount());
+        assertEquals(80, java.getPreviousBestScore());
+        assertEquals(javaSession.getCompletedAt(), java.getLastAttemptAt());
     }
 
     @Test

@@ -29,6 +29,18 @@ public class UserResponse {
 
     private String phone;
 
+    /**
+     * The GitHub username linked to this account, or {@code null} if no
+     * account is connected yet.
+     */
+    private String githubUsername;
+
+    /**
+     * The LeetCode username linked to this account, or {@code null} if no
+     * account is connected yet.
+     */
+    private String leetcodeUsername;
+
     private String role;
 
     private Boolean isActive;

@@ -16,6 +16,7 @@ import {
   CalendarCheck,
   Bot,
   FileSearch,
+  Target,
   Info,
   type LucideIcon,
 } from 'lucide-react';
@@ -59,6 +60,11 @@ const TYPE_META: Record<NotificationTypeEnum, TypeMeta> = {
     icon: FileSearch,
     tile: 'bg-rose-100',
     iconClass: 'text-rose-600',
+  },
+  READINESS: {
+    icon: Target,
+    tile: 'bg-teal-100',
+    iconClass: 'text-teal-600',
   },
   SYSTEM: {
     icon: Info,
