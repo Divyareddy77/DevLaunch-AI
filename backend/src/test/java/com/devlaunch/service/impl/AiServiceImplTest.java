@@ -5,6 +5,7 @@ import com.devlaunch.dto.request.MockInterviewSubmitRequest;
 import com.devlaunch.dto.request.ResumeReviewRequest;
 import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
+import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.InterviewSessionQuestion;
 import com.devlaunch.entity.Resume;
@@ -260,7 +261,25 @@ class AiServiceImplTest {
                         List.of("Good structure"),
                         List.of("Weak summary"),
                         List.of("AWS"),
-                        List.of()));
+                        List.of(),
+                        List.of(new ResumeReviewAnalysis.CategoryScore("Skills", 14, 20)),
+                        List.of("Portfolio"),
+                        List.of("Java", "Spring Boot"),
+                        List.of("Docker"),
+                        List.of("Add Docker to improve coverage"),
+                        List.of("Section order is recruiter-friendly."),
+                        new ResumeReviewAnalysis.SummaryAnalysis(
+                                70, List.of("Solid length"), List.of("Quantify impact"),
+                                "Improved summary text"),
+                        List.of(new ResumeReviewAnalysis.ProjectAnalysis(
+                                "Payments API", "Good", List.of("Spring Boot"), true,
+                                "Moderate", List.of("built"), true, List.of("Add metrics"))),
+                        new ResumeReviewAnalysis.SkillsAnalysis(
+                                List.of("Java"), List.of("Leadership"),
+                                "Skills are listed flat", List.of("Docker")),
+                        new ResumeReviewAnalysis.ExperienceAnalysis(
+                                List.of("built"), "Responsibilities described",
+                                "Achievements highlighted", true, List.of("Keep roles detailed"))));
 
         service.reviewResume(ResumeReviewRequest.builder()
                 .resumeId(10L)
@@ -277,6 +296,64 @@ class AiServiceImplTest {
         assertEquals("Java Developer", saved.getTargetRole());
         assertEquals(user, saved.getUser());
         assertEquals(resume, saved.getResume());
+    }
+
+    @Test
+    @DisplayName("reviewing a resume returns the full professional ATS report")
+    void reviewReturnsTheFullAtsReport() {
+        authenticate();
+        final User user = user();
+        final Resume resume = Resume.builder()
+                .headline("Senior Developer")
+                .summary("Experienced full-stack developer with 5 years of experience.")
+                .user(user)
+                .build();
+        resume.setId(10L);
+
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+        when(resumeRepository.findById(10L)).thenReturn(Optional.of(resume));
+        when(educationRepository.findByResume(resume)).thenReturn(List.of());
+        when(experienceRepository.findByResume(resume)).thenReturn(List.of());
+        when(skillRepository.findByResume(resume)).thenReturn(List.of());
+        when(projectRepository.findByResume(resume)).thenReturn(List.of());
+        when(certificationRepository.findByResume(resume)).thenReturn(List.of());
+        when(achievementRepository.findByResume(resume)).thenReturn(List.of());
+        when(sampleResumeReviewProvider.analyze(any(), any()))
+                .thenReturn(new ResumeReviewAnalysis(
+                        70, 60,
+                        List.of("Good structure"),
+                        List.of("Weak summary"),
+                        List.of("AWS"),
+                        List.of(),
+                        List.of(new ResumeReviewAnalysis.CategoryScore("Skills", 12, 20)),
+                        List.of("Portfolio"),
+                        List.of("Java"),
+                        List.of("AWS"),
+                        List.of("Add AWS to improve coverage"),
+                        List.of("Resume length is appropriate."),
+                        new ResumeReviewAnalysis.SummaryAnalysis(
+                                70, List.of(), List.of(), "Improved summary text"),
+                        List.of(),
+                        new ResumeReviewAnalysis.SkillsAnalysis(
+                                List.of(), List.of(), "No skills section", List.of()),
+                        new ResumeReviewAnalysis.ExperienceAnalysis(
+                                List.of(), "", "", false, List.of())));
+
+        final ResumeReviewResponse response = service.reviewResume(ResumeReviewRequest.builder()
+                .resumeId(10L)
+                .targetRole("Java Developer")
+                .build());
+
+        assertEquals(60, response.getAtsScore());
+        assertEquals(1, response.getCategoryScores().size());
+        assertEquals("Skills", response.getCategoryScores().get(0).getCategory());
+        assertEquals(12, response.getCategoryScores().get(0).getScore());
+        assertEquals(List.of("Portfolio"), response.getMissingSections());
+        assertEquals(List.of("Java"), response.getFoundKeywords());
+        assertEquals(List.of("AWS"), response.getMissingKeywords());
+        assertEquals(List.of("Add AWS to improve coverage"), response.getKeywordSuggestions());
+        assertEquals(List.of("Resume length is appropriate."), response.getFormattingAnalysis());
+        assertEquals("Improved summary text", response.getSummaryAnalysis().getImprovedSummary());
     }
 
 }

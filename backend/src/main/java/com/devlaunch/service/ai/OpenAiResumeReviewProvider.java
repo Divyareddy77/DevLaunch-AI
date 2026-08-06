@@ -37,11 +37,30 @@ public class OpenAiResumeReviewProvider implements ResumeReviewProvider {
                     + "Analyse the resume provided by the user and return STRICT JSON only, with no "
                     + "markdown formatting and no commentary outside the JSON object. Use exactly this "
                     + "schema: {\"resumeScore\": 0-100 integer, \"atsScore\": 0-100 integer, "
-                    + "\"strengths\": [string], \"weaknesses\": [string], \"missingSkills\": [string], "
+                    + "\"categoryScores\": [{\"category\": string, \"score\": integer, "
+                    + "\"maxScore\": integer}], \"strengths\": [string], \"weaknesses\": [string], "
+                    + "\"missingSkills\": [string], \"missingSections\": [string], "
+                    + "\"foundKeywords\": [string], \"missingKeywords\": [string], "
+                    + "\"keywordSuggestions\": [string], \"formattingAnalysis\": [string], "
                     + "\"suggestions\": [{\"section\": string, \"suggestion\": string, "
-                    + "\"priority\": \"high\"|\"medium\"|\"low\"}]}. The resumeScore rates overall resume "
+                    + "\"priority\": \"high\"|\"medium\"|\"low\"}], "
+                    + "\"summaryAnalysis\": {\"score\": 0-100 integer, \"strengths\": [string], "
+                    + "\"suggestions\": [string], \"improvedSummary\": string}, "
+                    + "\"projectAnalyses\": [{\"projectName\": string, \"descriptionQuality\": string, "
+                    + "\"technologiesMentioned\": [string], \"businessImpact\": boolean, "
+                    + "\"technicalDepth\": string, \"actionVerbs\": [string], "
+                    + "\"measurableOutcomes\": boolean, \"suggestions\": [string]}], "
+                    + "\"skillsAnalysis\": {\"technicalSkills\": [string], \"softSkills\": [string], "
+                    + "\"organization\": string, \"missingRelevantSkills\": [string]}, "
+                    + "\"experienceAnalysis\": {\"actionVerbs\": [string], \"responsibilities\": string, "
+                    + "\"achievements\": string, \"quantifiedImpact\": boolean, \"suggestions\": [string]}}. "
+                    + "The atsScore must be 0-100 and must equal the sum of the categoryScores scores, "
+                    + "with maxScore values of 10 (Contact Information), 10 (Professional Summary), "
+                    + "20 (Skills), 15 (Projects), 20 (Experience), 5 (Education), 5 (Certifications), "
+                    + "5 (Formatting), and 10 (Keyword Relevance). The resumeScore rates overall resume "
                     + "quality and the atsScore rates keyword and structure compatibility with automated "
-                    + "screening. Be specific and constructive.";
+                    + "screening. Report only missing sections and missing keywords that are genuinely "
+                    + "absent. Be specific and constructive.";
 
     private final OpenAiChatCompletions chatCompletions;
     private final ObjectMapper objectMapper;
@@ -118,16 +137,112 @@ public class OpenAiResumeReviewProvider implements ResumeReviewProvider {
                 }
             }
 
+            final List<ResumeReviewAnalysis.CategoryScore> categoryScores = new ArrayList<>();
+            final JsonNode categoryNode = analysis.path("categoryScores");
+            if (categoryNode.isArray()) {
+                for (final JsonNode entry : categoryNode) {
+                    categoryScores.add(new ResumeReviewAnalysis.CategoryScore(
+                            entry.path("category").asText("Category"),
+                            clampScore(entry.path("score").asInt(0)),
+                            Math.max(1, entry.path("maxScore").asInt(1))));
+                }
+            }
+
+            // Enforce the report invariant: the overall ATS score equals the
+            // sum of the category scores whenever categories are present, so
+            // the ring and the breakdown bars always agree.
+            final int atsScore = categoryScores.isEmpty()
+                    ? clampScore(analysis.path("atsScore").asInt(0))
+                    : clampScore(categoryScores.stream()
+                            .mapToInt(ResumeReviewAnalysis.CategoryScore::score)
+                            .sum());
+
             return new ResumeReviewAnalysis(
                     clampScore(analysis.path("resumeScore").asInt(0)),
-                    clampScore(analysis.path("atsScore").asInt(0)),
+                    atsScore,
                     readStringArray(analysis.path("strengths")),
                     readStringArray(analysis.path("weaknesses")),
                     readStringArray(analysis.path("missingSkills")),
-                    List.copyOf(suggestions));
+                    List.copyOf(suggestions),
+                    List.copyOf(categoryScores),
+                    readStringArray(analysis.path("missingSections")),
+                    readStringArray(analysis.path("foundKeywords")),
+                    readStringArray(analysis.path("missingKeywords")),
+                    readStringArray(analysis.path("keywordSuggestions")),
+                    readStringArray(analysis.path("formattingAnalysis")),
+                    parseSummaryAnalysis(analysis.path("summaryAnalysis")),
+                    parseProjectAnalyses(analysis.path("projectAnalyses")),
+                    parseSkillsAnalysis(analysis.path("skillsAnalysis")),
+                    parseExperienceAnalysis(analysis.path("experienceAnalysis")));
         } catch (final JsonProcessingException e) {
             throw new IllegalStateException("Failed to parse AI provider response", e);
         }
+    }
+
+    /**
+     * Parses the summary analysis object with defensive defaults.
+     */
+    private ResumeReviewAnalysis.SummaryAnalysis parseSummaryAnalysis(final JsonNode node) {
+        if (!node.isObject()) {
+            return new ResumeReviewAnalysis.SummaryAnalysis(
+                    0, List.of(), List.of(), "");
+        }
+        return new ResumeReviewAnalysis.SummaryAnalysis(
+                clampScore(node.path("score").asInt(0)),
+                readStringArray(node.path("strengths")),
+                readStringArray(node.path("suggestions")),
+                node.path("improvedSummary").asText(""));
+    }
+
+    /**
+     * Parses the per-project analyses with defensive defaults.
+     */
+    private List<ResumeReviewAnalysis.ProjectAnalysis> parseProjectAnalyses(final JsonNode node) {
+        final List<ResumeReviewAnalysis.ProjectAnalysis> analyses = new ArrayList<>();
+        if (node.isArray()) {
+            for (final JsonNode entry : node) {
+                analyses.add(new ResumeReviewAnalysis.ProjectAnalysis(
+                        entry.path("projectName").asText("Project"),
+                        entry.path("descriptionQuality").asText(""),
+                        readStringArray(entry.path("technologiesMentioned")),
+                        entry.path("businessImpact").asBoolean(false),
+                        entry.path("technicalDepth").asText(""),
+                        readStringArray(entry.path("actionVerbs")),
+                        entry.path("measurableOutcomes").asBoolean(false),
+                        readStringArray(entry.path("suggestions"))));
+            }
+        }
+        return List.copyOf(analyses);
+    }
+
+    /**
+     * Parses the skills analysis object with defensive defaults.
+     */
+    private ResumeReviewAnalysis.SkillsAnalysis parseSkillsAnalysis(final JsonNode node) {
+        if (!node.isObject()) {
+            return new ResumeReviewAnalysis.SkillsAnalysis(List.of(), List.of(), "", List.of());
+        }
+        return new ResumeReviewAnalysis.SkillsAnalysis(
+                readStringArray(node.path("technicalSkills")),
+                readStringArray(node.path("softSkills")),
+                node.path("organization").asText(""),
+                readStringArray(node.path("missingRelevantSkills")));
+    }
+
+    /**
+     * Parses the experience analysis object with defensive defaults.
+     */
+    private ResumeReviewAnalysis.ExperienceAnalysis parseExperienceAnalysis(final JsonNode node) {
+        if (!node.isObject()) {
+            return new ResumeReviewAnalysis.ExperienceAnalysis(
+                    List.of(), "", "", false, List.of());
+        }
+        return new ResumeReviewAnalysis.ExperienceAnalysis(
+                readStringArray(node.path("actionVerbs")),
+                node.path("responsibilities").asText(""),
+                node.path("achievements").asText(""),
+                node.path("quantifiedImpact").asBoolean(false),
+                readStringArray(node.path("suggestions")));
     }
 
     /**

@@ -43,6 +43,8 @@ export const MESSAGES = {
 
   // ---- AI ----
   RESUME_REVIEW_ERROR: 'Failed to review the resume. Please try again.',
+  SUMMARY_COPIED: 'Improved summary copied to clipboard.',
+  SUMMARY_COPY_ERROR: 'Could not copy the summary. Please copy it manually.',
   MOCK_INTERVIEW_START_ERROR: 'Failed to start the interview. Please try again.',
   MOCK_INTERVIEW_SUBMIT_ERROR: 'Failed to submit your interview. Please try again.',
   INTERVIEW_HISTORY_ERROR: 'Failed to load your interview history. Please try again.',
