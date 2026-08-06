@@ -5,6 +5,7 @@ import com.devlaunch.dto.response.GitHubProfileResponse;
 import com.devlaunch.dto.response.LanguageStatisticsResponse;
 import com.devlaunch.entity.JobApplication;
 import com.devlaunch.entity.Resume;
+import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.StudyPlanner;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.ApplicationStatus;
@@ -12,6 +13,7 @@ import com.devlaunch.entity.enums.StudyStatus;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.repository.JobApplicationRepository;
 import com.devlaunch.repository.ResumeRepository;
+import com.devlaunch.repository.ResumeReviewRepository;
 import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.DashboardService;
@@ -50,6 +52,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ResumeRepository resumeRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final StudyPlannerRepository studyPlannerRepository;
+    private final ResumeReviewRepository resumeReviewRepository;
     private final GitHubService gitHubService;
 
     /**
@@ -60,6 +63,7 @@ public class DashboardServiceImpl implements DashboardService {
      * @param resumeRepository         repository for resume data access
      * @param jobApplicationRepository repository for job application data access
      * @param studyPlannerRepository   repository for study planner data access
+     * @param resumeReviewRepository   repository for AI resume review history
      * @param gitHubService            service for fetching GitHub profile and
      *                                 repository data
      */
@@ -67,11 +71,13 @@ public class DashboardServiceImpl implements DashboardService {
                                 final ResumeRepository resumeRepository,
                                 final JobApplicationRepository jobApplicationRepository,
                                 final StudyPlannerRepository studyPlannerRepository,
+                                final ResumeReviewRepository resumeReviewRepository,
                                 final GitHubService gitHubService) {
         this.userRepository = userRepository;
         this.resumeRepository = resumeRepository;
         this.jobApplicationRepository = jobApplicationRepository;
         this.studyPlannerRepository = studyPlannerRepository;
+        this.resumeReviewRepository = resumeReviewRepository;
         this.gitHubService = gitHubService;
     }
 
@@ -141,6 +147,10 @@ public class DashboardServiceImpl implements DashboardService {
                 githubTopLanguage,
                 leetcodeSolved);
 
+        // Latest AI resume review for the dashboard ATS summary
+        final ResumeReview latestReview = resumeReviewRepository
+                .findByUserOrderByCreatedAtDesc(user).stream().findFirst().orElse(null);
+
         return DashboardResponse.builder()
                 .resumeCompletion(resumeCompletion)
                 .totalJobApplications(totalJobApplications)
@@ -151,7 +161,33 @@ public class DashboardServiceImpl implements DashboardService {
                 .githubTopLanguage(githubTopLanguage)
                 .leetcodeSolved(leetcodeSolved)
                 .placementReadiness(placementReadiness)
+                .atsScore(latestReview == null ? null : latestReview.getAtsScore())
+                .atsReviewedAt(latestReview == null ? null : latestReview.getCreatedAt())
+                .resumeQualityStatus(resumeQualityStatus(latestReview))
                 .build();
+    }
+
+    /**
+     * Derives a human-readable quality status from the latest resume review.
+     *
+     * @param latestReview the most recent resume review, or {@code null}
+     * @return a status label describing the latest ATS score
+     */
+    private String resumeQualityStatus(final ResumeReview latestReview) {
+        if (latestReview == null) {
+            return "Not Reviewed";
+        }
+        final int score = latestReview.getAtsScore();
+        if (score >= 80) {
+            return "Excellent";
+        }
+        if (score >= 60) {
+            return "Good";
+        }
+        if (score >= 40) {
+            return "Needs Improvement";
+        }
+        return "Action Required";
     }
 
     /**

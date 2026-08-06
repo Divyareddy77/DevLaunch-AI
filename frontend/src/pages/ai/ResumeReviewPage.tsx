@@ -1,10 +1,12 @@
 /**
- * ResumeReviewPage — AI-powered resume review and analysis.
+ * ResumeReviewPage — AI-powered ATS Resume Analysis.
  *
  * Lets the user select one of their existing resumes, optionally target
- * a job role, and receive an AI-generated analysis covering the resume
- * score, ATS compatibility score, strengths, weaknesses, missing skills,
- * and actionable improvement suggestions.
+ * a job role, and receive a professional ATS report: an overall ATS score
+ * with a weighted category breakdown, strengths, weaknesses, missing
+ * sections, keyword analysis, a formatting review, an evaluation of the
+ * professional summary (with an AI-improved version), and per-project,
+ * per-skill, and per-experience analyses.
  *
  * @see backend/src/main/java/com/devlaunch/controller/AiController.java
  * @author DevLaunch
@@ -16,11 +18,10 @@ import {
   FileSearch,
   FileText,
   Sparkles,
-  TrendingUp,
-  ShieldCheck,
   ThumbsUp,
   AlertTriangle,
   Puzzle,
+  Ruler,
 } from 'lucide-react';
 import { aiService } from '../../services/ai.service';
 import { resumeService } from '../../services/resume.service';
@@ -30,10 +31,16 @@ import { MESSAGES } from '../../constants/messages';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
 import { ResumeReviewForm } from '../../components/ai/ResumeReviewForm';
-import { ScoreCard } from '../../components/ai/ScoreCard';
+import { AtsScoreCard } from '../../components/ai/AtsScoreCard';
+import { CategoryScoresCard } from '../../components/ai/CategoryScoresCard';
 import { ReviewSection } from '../../components/ai/ReviewSection';
 import { SuggestionList } from '../../components/ai/SuggestionList';
 import { EmptyReviewState } from '../../components/ai/EmptyReviewState';
+import { KeywordAnalysisCard } from '../../components/ai/KeywordAnalysisCard';
+import { SummaryAnalysisCard } from '../../components/ai/SummaryAnalysisCard';
+import { ProjectAnalysisCard } from '../../components/ai/ProjectAnalysisCard';
+import { SkillsAnalysisCard } from '../../components/ai/SkillsAnalysisCard';
+import { ExperienceAnalysisCard } from '../../components/ai/ExperienceAnalysisCard';
 import type { ResumeResponse } from '../../types/resume';
 import type { ResumeReviewRequest, ResumeReviewResponse } from '../../types/ai';
 
@@ -91,10 +98,10 @@ export const ResumeReviewPage: React.FC = () => {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">AI Resume Review</h1>
+        <h1 className="text-2xl font-bold text-gray-900">ATS Resume Analysis</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Select a resume to receive AI-powered insights on its quality, ATS
-          compatibility, and how to improve it.
+          Select a resume to receive a professional ATS report — overall score,
+          category breakdown, keyword analysis, and actionable improvements.
         </p>
       </div>
 
@@ -132,7 +139,7 @@ export const ResumeReviewPage: React.FC = () => {
                 icon={Sparkles}
                 iconClassName="bg-primary-100 text-primary-600"
                 title="Ready to review"
-                description="Choose a resume above and hit “Review Resume” to see your scores, strengths, weaknesses, and improvement suggestions."
+                description="Choose a resume above and hit “Review Resume” to receive your ATS score, category breakdown, and improvement plan."
               />
             )}
 
@@ -149,28 +156,14 @@ export const ResumeReviewPage: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Scores */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <ScoreCard
-                    label="Resume Score"
-                    value={review.resumeScore}
-                    icon={TrendingUp}
-                    iconClassName="bg-primary-100 text-primary-600"
-                    barClassName="bg-primary-600"
-                    hint="Overall quality of your resume."
-                  />
-                  <ScoreCard
-                    label="ATS Score"
-                    value={review.atsScore}
-                    icon={ShieldCheck}
-                    iconClassName="bg-violet-100 text-violet-600"
-                    barClassName="bg-violet-500"
-                    hint="How well it passes automated screening."
-                  />
-                </div>
+                {/* Overall ATS score */}
+                <AtsScoreCard atsScore={review.atsScore} resumeScore={review.resumeScore} />
 
-                {/* Findings */}
-                <div className="grid gap-4 lg:grid-cols-3">
+                {/* Category breakdown */}
+                <CategoryScoresCard categoryScores={review.categoryScores} />
+
+                {/* Strengths / Weaknesses */}
+                <div className="grid gap-4 lg:grid-cols-2">
                   <ReviewSection
                     title="Strengths"
                     icon={ThumbsUp}
@@ -183,12 +176,47 @@ export const ResumeReviewPage: React.FC = () => {
                     iconClassName="bg-red-100 text-red-600"
                     items={review.weaknesses}
                   />
+                </div>
+
+                {/* Professional summary evaluation */}
+                <SummaryAnalysisCard analysis={review.summaryAnalysis} />
+
+                {/* Keyword analysis */}
+                <KeywordAnalysisCard
+                  foundKeywords={review.foundKeywords}
+                  missingKeywords={review.missingKeywords}
+                  keywordSuggestions={review.keywordSuggestions}
+                />
+
+                {/* Project analysis */}
+                <ProjectAnalysisCard projects={review.projectAnalyses} />
+
+                {/* Experience analysis */}
+                <ExperienceAnalysisCard analysis={review.experienceAnalysis} />
+
+                {/* Skills analysis */}
+                <SkillsAnalysisCard
+                  technicalSkills={review.skillsAnalysis.technicalSkills}
+                  softSkills={review.skillsAnalysis.softSkills}
+                  organization={review.skillsAnalysis.organization}
+                  missingRelevantSkills={review.skillsAnalysis.missingRelevantSkills}
+                />
+
+                {/* Missing sections + formatting review */}
+                <div className="grid gap-4 lg:grid-cols-2">
                   <ReviewSection
-                    title="Missing Skills"
+                    title="Missing Sections"
                     icon={Puzzle}
                     iconClassName="bg-blue-100 text-blue-600"
-                    items={review.missingSkills}
-                    emptyMessage="No missing skills detected."
+                    items={review.missingSections}
+                    emptyMessage="All standard sections are present."
+                  />
+                  <ReviewSection
+                    title="Formatting Review"
+                    icon={Ruler}
+                    iconClassName="bg-cyan-100 text-cyan-600"
+                    items={review.formattingAnalysis}
+                    emptyMessage="No formatting concerns."
                   />
                 </div>
 

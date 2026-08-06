@@ -10,8 +10,13 @@ import com.devlaunch.dto.response.MockInterviewHistoryItemResponse;
 import com.devlaunch.dto.response.MockInterviewHistoryResponse;
 import com.devlaunch.dto.response.MockInterviewQuestionResponse;
 import com.devlaunch.dto.response.MockInterviewStartResponse;
+import com.devlaunch.dto.response.CategoryScoreResponse;
+import com.devlaunch.dto.response.ExperienceAnalysisResponse;
+import com.devlaunch.dto.response.ProjectAnalysisResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.dto.response.ResumeReviewSuggestion;
+import com.devlaunch.dto.response.SkillsAnalysisResponse;
+import com.devlaunch.dto.response.SummaryAnalysisResponse;
 import com.devlaunch.entity.Achievement;
 import com.devlaunch.entity.Certification;
 import com.devlaunch.entity.Education;
@@ -185,10 +190,9 @@ public class AiServiceImpl implements AiService {
 
         // Notify the user that their review completed
         notificationService.createNotification(resume.getUser(), NotificationType.RESUME_REVIEW,
-                "Resume review completed",
-                "Your resume scored " + analysis.resumeScore()
-                        + "/100 (ATS: " + analysis.atsScore()
-                        + "/100). Check the suggestions to level it up.");
+                "ATS Resume Review completed",
+                "Your ATS Resume Review has been completed. Your resume scored "
+                        + analysis.atsScore() + "/100. Check the report for improvements.");
 
         // Celebrate an improved score over the previous best review
         if (previousReview != null && analysis.resumeScore() > previousReview.getResumeScore()) {
@@ -526,7 +530,7 @@ public class AiServiceImpl implements AiService {
                 resume.getPortfolioUrl(),
                 experiences.stream().map(this::formatExperience).toList(),
                 educations.stream().map(this::formatEducation).toList(),
-                skills.stream().map(Skill::getSkillName).toList(),
+                skills.stream().map(this::formatSkill).toList(),
                 projects.stream().map(this::formatProject).toList(),
                 certifications.stream().map(this::formatCertification).toList(),
                 achievements.stream().map(this::formatAchievement).toList());
@@ -575,6 +579,18 @@ public class AiServiceImpl implements AiService {
     }
 
     /**
+     * Formats a skill entry, appending its proficiency level in parentheses
+     * when present (matching the Resume PDF formatting).
+     */
+    private String formatSkill(final Skill skill) {
+        final String name = skill.getSkillName();
+        if (skill.getProficiency() != null && !skill.getProficiency().isBlank()) {
+            return name + " (" + skill.getProficiency().trim() + ")";
+        }
+        return name;
+    }
+
+    /**
      * Appends a non-blank description to the formatted entry.
      */
     private String appendDescription(final String description) {
@@ -617,6 +633,53 @@ public class AiServiceImpl implements AiService {
                         .build())
                 .toList();
 
+        final List<CategoryScoreResponse> categoryScores = analysis.categoryScores().stream()
+                .map(score -> CategoryScoreResponse.builder()
+                        .category(score.category())
+                        .score(score.score())
+                        .maxScore(score.maxScore())
+                        .build())
+                .toList();
+
+        final SummaryAnalysisResponse summaryAnalysis =
+                SummaryAnalysisResponse.builder()
+                        .score(analysis.summaryAnalysis().score())
+                        .strengths(analysis.summaryAnalysis().strengths())
+                        .suggestions(analysis.summaryAnalysis().suggestions())
+                        .improvedSummary(analysis.summaryAnalysis().improvedSummary())
+                        .build();
+
+        final List<ProjectAnalysisResponse> projectAnalyses =
+                analysis.projectAnalyses().stream()
+                        .map(project -> ProjectAnalysisResponse.builder()
+                                .projectName(project.projectName())
+                                .descriptionQuality(project.descriptionQuality())
+                                .technologiesMentioned(project.technologiesMentioned())
+                                .businessImpact(project.businessImpact())
+                                .technicalDepth(project.technicalDepth())
+                                .actionVerbs(project.actionVerbs())
+                                .measurableOutcomes(project.measurableOutcomes())
+                                .suggestions(project.suggestions())
+                                .build())
+                        .toList();
+
+        final SkillsAnalysisResponse skillsAnalysis =
+                SkillsAnalysisResponse.builder()
+                        .technicalSkills(analysis.skillsAnalysis().technicalSkills())
+                        .softSkills(analysis.skillsAnalysis().softSkills())
+                        .organization(analysis.skillsAnalysis().organization())
+                        .missingRelevantSkills(analysis.skillsAnalysis().missingRelevantSkills())
+                        .build();
+
+        final ExperienceAnalysisResponse experienceAnalysis =
+                ExperienceAnalysisResponse.builder()
+                        .actionVerbs(analysis.experienceAnalysis().actionVerbs())
+                        .responsibilities(analysis.experienceAnalysis().responsibilities())
+                        .achievements(analysis.experienceAnalysis().achievements())
+                        .quantifiedImpact(analysis.experienceAnalysis().quantifiedImpact())
+                        .suggestions(analysis.experienceAnalysis().suggestions())
+                        .build();
+
         return ResumeReviewResponse.builder()
                 .resumeId(resume.getId())
                 .resumeTitle(resume.getHeadline())
@@ -626,6 +689,16 @@ public class AiServiceImpl implements AiService {
                 .weaknesses(analysis.weaknesses())
                 .missingSkills(analysis.missingSkills())
                 .suggestions(suggestions)
+                .categoryScores(categoryScores)
+                .missingSections(analysis.missingSections())
+                .foundKeywords(analysis.foundKeywords())
+                .missingKeywords(analysis.missingKeywords())
+                .keywordSuggestions(analysis.keywordSuggestions())
+                .formattingAnalysis(analysis.formattingAnalysis())
+                .summaryAnalysis(summaryAnalysis)
+                .projectAnalyses(projectAnalyses)
+                .skillsAnalysis(skillsAnalysis)
+                .experienceAnalysis(experienceAnalysis)
                 .build();
     }
 

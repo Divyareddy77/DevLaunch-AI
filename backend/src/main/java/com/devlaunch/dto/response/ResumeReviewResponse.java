@@ -66,4 +66,57 @@ public class ResumeReviewResponse {
      */
     private List<ResumeReviewSuggestion> suggestions;
 
+    /**
+     * The weighted category breakdown of the ATS score, always summing
+     * to the overall {@link #atsScore}.
+     */
+    private List<CategoryScoreResponse> categoryScores;
+
+    /**
+     * Standard resume sections that are genuinely absent from the resume.
+     */
+    private List<String> missingSections;
+
+    /**
+     * Technical keywords detected in the resume text.
+     */
+    private List<String> foundKeywords;
+
+    /**
+     * Common in-demand keywords that are absent from the resume.
+     */
+    private List<String> missingKeywords;
+
+    /**
+     * Suggestions for improving keyword coverage.
+     */
+    private List<String> keywordSuggestions;
+
+    /**
+     * Findings on section order, heading consistency, contact completeness,
+     * resume length, and readability.
+     */
+    private List<String> formattingAnalysis;
+
+    /**
+     * Evaluation of the professional summary, including an AI-generated
+     * improved version.
+     */
+    private SummaryAnalysisResponse summaryAnalysis;
+
+    /**
+     * Per-project quality evaluations.
+     */
+    private List<ProjectAnalysisResponse> projectAnalyses;
+
+    /**
+     * Evaluation of the skills section.
+     */
+    private SkillsAnalysisResponse skillsAnalysis;
+
+    /**
+     * Evaluation of the experience section.
+     */
+    private ExperienceAnalysisResponse experienceAnalysis;
+
 }

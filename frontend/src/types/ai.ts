@@ -139,6 +139,74 @@ export interface ResumeReviewSuggestion {
   priority: 'high' | 'medium' | 'low';
 }
 
+/** A single weighted category contributing to the overall ATS score. */
+export interface CategoryScore {
+  /** The category name (e.g. "Skills", "Experience"). */
+  category: string;
+  /** The points achieved in this category. */
+  score: number;
+  /** The maximum points available in this category. */
+  maxScore: number;
+}
+
+/** Evaluation of the professional summary section. */
+export interface SummaryAnalysis {
+  /** The summary quality score (0–100). */
+  score: number;
+  /** The strengths of the current summary. */
+  strengths: string[];
+  /** How the summary could be improved. */
+  suggestions: string[];
+  /** An AI-generated improved version of the summary. */
+  improvedSummary: string;
+}
+
+/** Evaluation of a single project entry. */
+export interface ProjectAnalysis {
+  /** The name of the project. */
+  projectName: string;
+  /** Qualitative rating of the description (e.g. "Detailed", "Brief"). */
+  descriptionQuality: string;
+  /** Technologies called out in the project. */
+  technologiesMentioned: string[];
+  /** Whether the project describes its business impact. */
+  businessImpact: boolean;
+  /** Qualitative technical depth rating. */
+  technicalDepth: string;
+  /** Action verbs used in the description. */
+  actionVerbs: string[];
+  /** Whether measurable outcomes are present. */
+  measurableOutcomes: boolean;
+  /** Project-specific improvement suggestions. */
+  suggestions: string[];
+}
+
+/** Evaluation of the skills section. */
+export interface SkillsAnalysis {
+  /** Skills matching known technical keywords. */
+  technicalSkills: string[];
+  /** Remaining (non-technical) skills. */
+  softSkills: string[];
+  /** A note on how the skills are organised. */
+  organization: string;
+  /** In-demand skills missing from the resume. */
+  missingRelevantSkills: string[];
+}
+
+/** Evaluation of the experience section. */
+export interface ExperienceAnalysis {
+  /** Action verbs found across the roles. */
+  actionVerbs: string[];
+  /** A note on how responsibilities are described. */
+  responsibilities: string;
+  /** A note on how achievements are highlighted. */
+  achievements: string;
+  /** Whether quantified impact is present. */
+  quantifiedImpact: boolean;
+  /** Experience-specific improvement suggestions. */
+  suggestions: string[];
+}
+
 /** Response returned after an AI resume review. */
 export interface ResumeReviewResponse {
   /** The ID of the resume that was reviewed. */
@@ -157,4 +225,24 @@ export interface ResumeReviewResponse {
   missingSkills: string[];
   /** Detailed suggestions for improvement. */
   suggestions: ResumeReviewSuggestion[];
+  /** The weighted category breakdown of the ATS score. */
+  categoryScores: CategoryScore[];
+  /** Standard resume sections that are genuinely absent. */
+  missingSections: string[];
+  /** Technical keywords detected in the resume text. */
+  foundKeywords: string[];
+  /** Common in-demand keywords that are absent. */
+  missingKeywords: string[];
+  /** Suggestions for improving keyword coverage. */
+  keywordSuggestions: string[];
+  /** Findings on structure, headings, length, and readability. */
+  formattingAnalysis: string[];
+  /** Evaluation of the professional summary. */
+  summaryAnalysis: SummaryAnalysis;
+  /** Per-project quality evaluations. */
+  projectAnalyses: ProjectAnalysis[];
+  /** Evaluation of the skills section. */
+  skillsAnalysis: SkillsAnalysis;
+  /** Evaluation of the experience section. */
+  experienceAnalysis: ExperienceAnalysis;
 }

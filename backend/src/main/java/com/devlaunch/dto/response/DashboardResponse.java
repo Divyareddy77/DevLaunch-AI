@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 /**
  * Response DTO for the achievement dashboard overview.
  * <p>
@@ -87,5 +89,23 @@ public class DashboardResponse {
      * A higher score indicates greater readiness for the job market.
      */
     private Integer placementReadiness;
+
+    /**
+     * The Applicant Tracking System score of the user's most recent AI
+     * resume review, or {@code null} if no review has been completed yet.
+     */
+    private Integer atsScore;
+
+    /**
+     * The date and time of the user's most recent AI resume review,
+     * or {@code null} if no review has been completed yet.
+     */
+    private LocalDateTime atsReviewedAt;
+
+    /**
+     * A human-readable quality status derived from the latest ATS score
+     * (e.g. "Excellent", "Good", "Needs Improvement", "Not Reviewed").
+     */
+    private String resumeQualityStatus;
 
 }

@@ -41,4 +41,13 @@ export interface DashboardResponse {
 
   /** Overall placement readiness score (0–100). */
   placementReadiness: number;
+
+  /** ATS score of the most recent AI resume review, or null if none yet. */
+  atsScore: number | null;
+
+  /** ISO-8601 timestamp of the most recent AI resume review, or null. */
+  atsReviewedAt: string | null;
+
+  /** Human-readable quality status from the latest ATS score. */
+  resumeQualityStatus: string | null;
 }

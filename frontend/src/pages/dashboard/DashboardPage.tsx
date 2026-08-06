@@ -19,6 +19,7 @@ import {
   Award,
   Target,
   Bell,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
@@ -31,6 +32,7 @@ import { StudyPlannerCard } from '../../components/dashboard/StudyPlannerCard';
 import { GitHubCard } from '../../components/dashboard/GitHubCard';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { formatDate } from '../../utils/date';
 import { ROUTES } from '../../constants/routes';
 import type { DashboardResponse } from '../../types/dashboard';
 import type { Announcement } from '../../types/announcement';
@@ -49,6 +51,22 @@ function scoreBgColor(score: number): string {
   if (score >= 60) return 'text-indigo-600';
   if (score >= 40) return 'text-amber-600';
   return 'text-red-600';
+}
+
+/** Text colour for the latest ATS score on the dashboard card. */
+function atsScoreTextColor(score: number): string {
+  if (score >= 80) return 'text-emerald-600';
+  if (score >= 60) return 'text-indigo-600';
+  if (score >= 40) return 'text-amber-600';
+  return 'text-red-600';
+}
+
+/** Badge colour for the resume quality status on the dashboard card. */
+function atsScoreBadgeColor(score: number): string {
+  if (score >= 80) return 'bg-emerald-100 text-emerald-700';
+  if (score >= 60) return 'bg-indigo-100 text-indigo-700';
+  if (score >= 40) return 'bg-amber-100 text-amber-700';
+  return 'bg-red-100 text-red-700';
 }
 
 /**
@@ -200,6 +218,47 @@ export const DashboardPage: React.FC = () => {
 
       {/* ---- Metrics grid ---- */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Resume ATS Score */}
+        <DashboardCard
+          title="Resume ATS Score"
+          icon={<ShieldCheck className="h-5 w-5" />}
+          action={
+            <button
+              onClick={() => navigate(ROUTES.RESUME_REVIEW)}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              Run Review
+            </button>
+          }
+        >
+          {data.atsScore !== null ? (
+            <div className="flex flex-col items-center">
+              <span
+                className={`text-4xl font-bold ${atsScoreTextColor(data.atsScore)}`}
+              >
+                {data.atsScore}
+                <span className="ml-1 text-base font-medium text-gray-400">/ 100</span>
+              </span>
+              <span
+                className={`mt-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${atsScoreBadgeColor(data.atsScore)}`}
+              >
+                {data.resumeQualityStatus ?? 'Reviewed'}
+              </span>
+              <p className="mt-2 text-xs text-gray-400">
+                Last review {data.atsReviewedAt ? formatDate(data.atsReviewedAt) : '—'}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-4">
+              <ShieldCheck className="mb-2 h-8 w-8 text-gray-300" />
+              <p className="text-sm font-medium text-gray-500">No ATS review yet</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                Run an AI review to see your resume score
+              </p>
+            </div>
+          )}
+        </DashboardCard>
+
         {/* Resume Completion */}
         <DashboardCard
           title="Resume Completion"
