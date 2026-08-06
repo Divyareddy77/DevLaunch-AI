@@ -6,7 +6,7 @@
  * (Easy / Medium / Hard / Mixed), interview length (5 / 10 / 15
  * questions), whether the session is timed, and the answer mode: voice
  * (with optional camera and microphone) or text. Shows coaching tips and
- * falls back to text mode when the browser has no speech recognition.
+ * falls back to text mode when the browser has no audio recording support.
  *
  * @author DevLaunch
  */
@@ -16,7 +16,7 @@ import { ArrowLeft, Mic, Video, VideoOff, MicOff, Keyboard, Clock, Lightbulb, Pl
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { speechRecognitionSupported } from '../../hooks/useSpeechRecognition';
+import { mediaRecorderSupported } from '../../hooks/useMediaRecorder';
 import { MESSAGES } from '../../constants/messages';
 import {
   INTERVIEW_CATEGORY_META,
@@ -74,7 +74,7 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
   onBack,
 }) => {
   const meta = INTERVIEW_CATEGORY_META[category];
-  const speechSupported = useMemo(() => speechRecognitionSupported(), []);
+  const recordingSupported = useMemo(() => mediaRecorderSupported(), []);
 
   const [difficulty, setDifficulty] = useState<InterviewDifficulty>(
     defaultConfig?.difficulty ?? DEFAULT_INTERVIEW_CONFIG.difficulty,
@@ -95,11 +95,11 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
     defaultConfig?.microphoneEnabled ?? DEFAULT_INTERVIEW_CONFIG.microphoneEnabled,
   );
 
-  const voiceUnsupported = voiceMode && !speechSupported;
+  const voiceUnsupported = voiceMode && !recordingSupported;
   const estimatedMinutes = Math.round(questionLength * MINUTES_PER_QUESTION);
 
   const selectVoiceMode = (enabled: boolean) => {
-    if (enabled && !speechSupported) {
+    if (enabled && !recordingSupported) {
       return;
     }
     setVoiceMode(enabled);
@@ -113,9 +113,9 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
       difficulty,
       questionLength,
       timed,
-      voiceMode: voiceMode && speechSupported,
+      voiceMode: voiceMode && recordingSupported,
       cameraEnabled,
-      microphoneEnabled: microphoneEnabled && voiceMode && speechSupported,
+      microphoneEnabled: microphoneEnabled && voiceMode && recordingSupported,
     });
   };
 
@@ -287,11 +287,11 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
                   type="button"
                   onClick={() => selectVoiceMode(true)}
                   aria-pressed={voiceMode}
-                  disabled={!speechSupported}
+                  disabled={!recordingSupported}
                   className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 transition-all ${
                     voiceMode
                       ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
-                      : speechSupported
+                      : recordingSupported
                         ? 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                         : 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-60'
                   }`}
@@ -302,7 +302,7 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
                       Voice mode
                     </p>
                     <p className="mt-0.5 text-[11px] text-gray-500">
-                      {speechSupported ? 'Answer with your voice' : 'Not supported in this browser'}
+                      {recordingSupported ? 'Answer with your voice' : 'Not supported in this browser'}
                     </p>
                   </div>
                 </button>
@@ -310,7 +310,7 @@ export const MockInterviewSetup: React.FC<MockInterviewSetupProps> = ({
 
               {voiceUnsupported && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  {MESSAGES.INTERVIEW_SPEECH_UNSUPPORTED}
+                  {MESSAGES.INTERVIEW_RECORDING_UNSUPPORTED}
                 </p>
               )}
 

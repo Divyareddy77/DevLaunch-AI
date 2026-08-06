@@ -51,6 +51,15 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- Spring Mail (SMTP) — used to deliver password reset emails.
+             Wired behind the reusable EmailService abstraction so the
+             provider can be swapped (e.g. SendGrid, Mailgun) later without
+             touching the authentication flow. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- MySQL Driver -->
         <dependency>
             <groupId>com.mysql</groupId>

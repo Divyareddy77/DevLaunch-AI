@@ -84,6 +84,67 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles {@link AiTranscriptionException} thrown when speech-to-text
+     * transcription fails upstream (provider error, network timeout, or an
+     * audio payload the provider rejected).
+     *
+     * @param ex      the exception instance
+     * @param request the current HTTP request
+     * @return a 502 Bad Gateway response with error details
+     */
+    @ExceptionHandler(AiTranscriptionException.class)
+    public ResponseEntity<ErrorResponse> handleAiTranscription(
+            AiTranscriptionException ex,
+            HttpServletRequest request) {
+        return buildErrorResponse(
+                HttpStatus.BAD_GATEWAY,
+                "Bad Gateway",
+                ex.getMessage(),
+                request
+        );
+    }
+
+    /**
+     * Handles {@link InvalidPasswordResetTokenException} thrown when a
+     * password reset token does not exist or has already been used.
+     *
+     * @param ex      the exception instance
+     * @param request the current HTTP request
+     * @return a 400 Bad Request response with error details
+     */
+    @ExceptionHandler(InvalidPasswordResetTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPasswordResetToken(
+            InvalidPasswordResetTokenException ex,
+            HttpServletRequest request) {
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage(),
+                request
+        );
+    }
+
+    /**
+     * Handles {@link PasswordResetTokenExpiredException} thrown when a
+     * password reset token has passed its expiry window.
+     *
+     * @param ex      the exception instance
+     * @param request the current HTTP request
+     * @return a 400 Bad Request response with error details
+     */
+    @ExceptionHandler(PasswordResetTokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handlePasswordResetTokenExpired(
+            PasswordResetTokenExpiredException ex,
+            HttpServletRequest request) {
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage(),
+                request
+        );
+    }
+
+    /**
      * Handles {@link IllegalArgumentException} thrown when a service method
      * receives an invalid argument, such as an incorrect current password
      * during a password change operation.

@@ -12,6 +12,10 @@
 export const AUTH = {
   LOGIN: '/api/auth/login',
   REGISTER: '/api/auth/register',
+  /** POST — Request a password reset link for an email address. */
+  FORGOT_PASSWORD: '/api/auth/forgot-password',
+  /** POST — Complete a password reset with a one-time token. */
+  RESET_PASSWORD: '/api/auth/reset-password',
 } as const;
 
 export const USERS = {
@@ -124,6 +128,8 @@ export const AI = {
     `/api/ai/mock-interview/history/${encodeURIComponent(sessionId)}`,
   /** POST — Submit a resume for AI-powered review. */
   REVIEW_RESUME: '/api/ai/resume-review',
+  /** POST — Transcribe a recorded voice answer (multipart/form-data). */
+  TRANSCRIBE: '/api/ai/transcribe',
 } as const;
 
 /**

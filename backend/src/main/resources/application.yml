@@ -50,17 +50,47 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
 
+  # SMTP configuration used by the EmailService for password reset emails.
+  # Leave MAIL_USERNAME/MAIL_PASSWORD empty in development — sending failures
+  # are logged and never break the forgot-password flow.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    # Default the from address to the SMTP authenticating account so a
+    # configured username without an explicit MAIL_FROM still works.
+    from: ${MAIL_FROM:${MAIL_USERNAME:devlaunch@devlaunch.com}}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
 # AI Provider Configuration
 # Optional LLM provider (e.g. OpenAI) used by the AI module. When no API key
 # is configured, the application falls back to deterministic sample analysis
 # so all AI features remain fully functional.
 devlaunch:
+  # Password reset flow configuration.
+  auth:
+    # Base URL of the frontend used to build the reset link in emails.
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    # How long a password reset token stays valid, in minutes.
+    reset-token-expiry-minutes: ${RESET_TOKEN_EXPIRY_MINUTES:30}
+
   ai:
     provider-api-key: ${AI_PROVIDER_API_KEY:}
     model: ${AI_MODEL:gpt-4o-mini}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
     connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:10}
     read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
+    # Whisper speech-to-text used for voice answers in the mock interview.
+    # Shares the same API key and base URL; only the model and timeout differ
+    # (transcription of a several-minute answer can take a while).
+    whisper-model: ${AI_WHISPER_MODEL:whisper-1}
+    whisper-read-timeout-seconds: ${AI_WHISPER_READ_TIMEOUT_SECONDS:300}
 
   # Local directory where job application attachments are stored on disk.
   upload:

@@ -16,6 +16,12 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   /** Optional icon displayed inside the input on the left side. */
   leftIcon?: ReactNode;
+  /**
+   * Optional element rendered inside the input on the right side
+   * (e.g. a password visibility toggle button). Interactive elements
+   * receive pointer events; pass a button with {@code type="button"}.
+   */
+  rightIcon?: ReactNode;
   /** Hint text displayed below the input field. */
   hint?: string;
   /** Makes the input span full width. */
@@ -23,7 +29,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, leftIcon, hint, fullWidth = true, className = '', id, ...props }, ref) => {
+  ({ label, error, leftIcon, rightIcon, hint, fullWidth = true, className = '', id, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
@@ -57,12 +63,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                   : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
               }
               ${leftIcon ? 'pl-10' : ''}
+              ${rightIcon ? 'pr-10' : ''}
               ${className}
             `}
             aria-invalid={error ? 'true' : 'false'}
             aria-describedby={error ? `${inputId}-error` : undefined}
             {...props}
           />
+
+          {rightIcon && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+              <span className="pointer-events-auto">{rightIcon}</span>
+            </div>
+          )}
         </div>
 
         {error && (

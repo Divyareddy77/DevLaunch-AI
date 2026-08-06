@@ -31,3 +31,20 @@ export interface AuthResponse {
   expiresIn: number;
   message: string;
 }
+
+/** Payload sent to POST /api/auth/forgot-password. */
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+/** Payload sent to POST /api/auth/reset-password. */
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+/** Generic message body returned by the password reset endpoints. */
+export interface MessageResponse {
+  message: string;
+}

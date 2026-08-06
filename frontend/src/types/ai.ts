@@ -164,6 +164,14 @@ export interface InterviewReportData {
 /** Response returned after answers are submitted and analysed. */
 export interface SubmitInterviewResponse extends InterviewReportData {}
 
+/** Response returned when a recorded voice answer is transcribed. */
+export interface TranscribeResponse {
+  /** The transcribed text of the recording. */
+  transcript: string;
+  /** The duration of the recorded audio in seconds. */
+  duration: number;
+}
+
 /** A single point of the interview score trend. */
 export interface ScoreTrendPoint {
   /** The date the interview was completed. */

@@ -27,6 +27,8 @@ export interface SpeakingMetrics {
   speakingSeconds: number;
   /** Words per minute. */
   wpm: number;
+  /** The number of sentences detected in the transcript. */
+  sentenceCount: number;
   /** The filler words detected, in order of appearance. */
   fillerWords: string[];
   /** The total number of filler words detected. */
@@ -59,6 +61,14 @@ export function analyzeSpeaking(
   const wordCount = words.length;
   const wpm = speakingSeconds > 0 ? Math.round((wordCount / speakingSeconds) * 60) : 0;
 
+  // A transcript with no sentence punctuation counts as a single sentence,
+  // matching the backend's sentence scoring.
+  let sentenceCount = 0;
+  if (wordCount > 0) {
+    const sentenceMatches = text.match(/[.!?]+/g);
+    sentenceCount = sentenceMatches ? sentenceMatches.length : 1;
+  }
+
   const fillerWords = Array.from(text.matchAll(FILLER_WORD_PATTERN)).map((match) =>
     match[0].toLowerCase(),
   );
@@ -89,6 +99,7 @@ export function analyzeSpeaking(
     wordCount,
     speakingSeconds,
     wpm,
+    sentenceCount,
     fillerWords,
     fillerWordCount,
     longPauses,

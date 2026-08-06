@@ -8,7 +8,7 @@
  * @author DevLaunch
  */
 
-import { type RouteObject, Navigate } from 'react-router-dom';
+import { type RouteObject, Navigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { AuthLayout } from '../layouts/AuthLayout';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -17,6 +17,8 @@ import { AdminRoute } from '../components/shared/AdminRoute';
 import { PublicOnlyRoute } from '../components/shared/PublicOnlyRoute';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
+import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResumePage } from '../pages/resume/ResumePage';
 import { CreateResumePage } from '../pages/resume/CreateResumePage';
@@ -43,11 +45,28 @@ import { AdminAnnouncementsPage } from '../pages/admin/AdminAnnouncementsPage';
 import { AdminFeedbackPage } from '../pages/admin/AdminFeedbackPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
+/**
+ * Redirects the short /reset-password URL used in password reset emails
+ * to the canonical /auth/reset-password route, preserving the token.
+ */
+const ResetPasswordRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const query = searchParams.toString();
+  const to = query ? `${ROUTES.RESET_PASSWORD}?${query}` : ROUTES.RESET_PASSWORD;
+  return <Navigate to={to} replace />;
+};
+
 export const routes: RouteObject[] = [
   // ---- Public redirect ----
   {
     path: '/',
     element: <Navigate to={ROUTES.DASHBOARD} replace />,
+  },
+
+  // ---- Short reset link from password reset emails ----
+  {
+    path: '/reset-password',
+    element: <ResetPasswordRedirect />,
   },
 
   // ---- Auth routes (public, only for unauthenticated users) ----
@@ -64,6 +83,14 @@ export const routes: RouteObject[] = [
           {
             path: ROUTES.REGISTER,
             element: <RegisterPage />,
+          },
+          {
+            path: ROUTES.FORGOT_PASSWORD,
+            element: <ForgotPasswordPage />,
+          },
+          {
+            path: ROUTES.RESET_PASSWORD,
+            element: <ResetPasswordPage />,
           },
         ],
       },
