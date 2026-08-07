@@ -1,9 +1,13 @@
 package com.devlaunch.service.impl;
 
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.response.LeetCodeProfileResponse;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.exception.ResourceNotFoundException;
+import com.devlaunch.messaging.AccountSyncEventPublisher;
 import com.devlaunch.service.interfaces.LeetCodeService;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -51,19 +55,25 @@ public class LeetCodeServiceImpl implements LeetCodeService {
             """;
 
     private final RestClient restClient;
+    private final AccountSyncEventPublisher syncEventPublisher;
 
     /**
      * Constructs the LeetCode service with a default {@link RestClient}
-     * instance for making HTTP requests to the LeetCode GraphQL API.
+     * instance for making HTTP requests to the LeetCode GraphQL API and
+     * the shared account-sync publisher for the gamification engine.
+     *
+     * @param syncEventPublisher publisher for fresh LeetCode sync activities
      */
-    public LeetCodeServiceImpl() {
+    public LeetCodeServiceImpl(final AccountSyncEventPublisher syncEventPublisher) {
         this.restClient = RestClient.create();
+        this.syncEventPublisher = syncEventPublisher;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.LEETCODE, key = "#username")
     public LeetCodeProfileResponse getLeetCodeProfile(final String username) {
         GraphQLResponse response;
 
@@ -134,6 +144,10 @@ public class LeetCodeServiceImpl implements LeetCodeService {
         Double acceptanceRate = totalSubmissions > 0
                 ? Math.round((double) totalSolved / totalSubmissions * 1000) / 10.0
                 : null;
+
+        // A fresh (non-cached) profile fetch is a sync: let the gamification
+        // engine re-evaluate the LeetCode badges with the latest solved count.
+        syncEventPublisher.publishIfLinked(username, ActivityType.LEETCODE_SYNCED, totalSolved);
 
         return LeetCodeProfileResponse.builder()
                 .username(matchedUser.username)

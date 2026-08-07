@@ -14,8 +14,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
-  Award,
-  Target,
   Bell,
   ShieldCheck,
 } from 'lucide-react';
@@ -31,6 +29,7 @@ import { StudyPlannerCard } from '../../components/dashboard/StudyPlannerCard';
 import { GitHubCard } from '../../components/dashboard/GitHubCard';
 import { LeetCodeCard } from '../../components/dashboard/LeetCodeCard';
 import { MockInterviewCard } from '../../components/dashboard/MockInterviewCard';
+import { AchievementSummaryCard } from '../../components/dashboard/AchievementSummaryCard';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
 import { formatDate } from '../../utils/date';
@@ -268,19 +267,8 @@ export const DashboardPage: React.FC = () => {
           onConnect={goToLeetCode}
         />
 
-        {/* Achievements summary placeholder */}
-        <DashboardCard
-          title="Achievements"
-          icon={<Award className="h-5 w-5" />}
-        >
-          <div className="flex flex-col items-center py-4">
-            <Target className="mb-2 h-8 w-8 text-gray-300" />
-            <p className="text-sm font-medium text-gray-500">Start your journey</p>
-            <p className="mt-0.5 text-xs text-gray-400">
-              Complete tasks across modules to earn achievements
-            </p>
-          </div>
-        </DashboardCard>
+        {/* Achievements gamification widget */}
+        <AchievementSummaryCard />
 
         {/* Notifications summary */}
         <DashboardCard

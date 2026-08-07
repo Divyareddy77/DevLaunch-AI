@@ -2,10 +2,14 @@ package com.devlaunch.service.impl;
 
 import com.devlaunch.dto.response.GitHubProfileResponse;
 import com.devlaunch.dto.response.LanguageStatisticsResponse;
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.response.RepositoryResponse;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.exception.ResourceNotFoundException;
+import com.devlaunch.messaging.AccountSyncEventPublisher;
 import com.devlaunch.service.interfaces.GitHubService;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -33,19 +37,25 @@ import java.util.stream.Collectors;
 public class GitHubServiceImpl implements GitHubService {
 
     private final RestClient restClient;
+    private final AccountSyncEventPublisher syncEventPublisher;
 
     /**
      * Constructs the GitHub service with a default {@link RestClient}
-     * instance for making HTTP requests to the GitHub REST API.
+     * instance for making HTTP requests to the GitHub REST API and the
+     * shared account-sync publisher for the gamification engine.
+     *
+     * @param syncEventPublisher publisher for fresh GitHub sync activities
      */
-    public GitHubServiceImpl() {
+    public GitHubServiceImpl(final AccountSyncEventPublisher syncEventPublisher) {
         this.restClient = RestClient.create();
+        this.syncEventPublisher = syncEventPublisher;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
     public GitHubProfileResponse getGitHubProfile(final String username) {
         GitHubApiUserResponse apiResponse;
 
@@ -72,6 +82,11 @@ public class GitHubServiceImpl implements GitHubService {
                     "GitHub user '" + username + "' not found");
         }
 
+        // A fresh (non-cached) profile fetch is a sync: let the gamification
+        // engine re-evaluate the GitHub badges with the latest repo count.
+        syncEventPublisher.publishIfLinked(username, ActivityType.GITHUB_CONNECTED,
+                apiResponse.publicRepos);
+
         return GitHubProfileResponse.builder()
                 .username(apiResponse.login)
                 .name(apiResponse.name)
@@ -93,6 +108,7 @@ public class GitHubServiceImpl implements GitHubService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
     public List<RepositoryResponse> getRepositories(final String username) {
         GitHubApiRepoResponse[] apiResponses;
 
@@ -136,6 +152,7 @@ public class GitHubServiceImpl implements GitHubService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
     public List<LanguageStatisticsResponse> getLanguageStatistics(final String username) {
         GitHubApiRepoResponse[] apiResponses;
 

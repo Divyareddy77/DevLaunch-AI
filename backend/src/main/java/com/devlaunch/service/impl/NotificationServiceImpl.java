@@ -1,5 +1,6 @@
 package com.devlaunch.service.impl;
 
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.response.NotificationResponse;
 import com.devlaunch.entity.Notification;
 import com.devlaunch.entity.User;
@@ -10,6 +11,8 @@ import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -58,6 +61,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS, key = "#user.id")
     public void createNotification(final User user, final NotificationType type,
                                    final String title, final String message) {
         notificationRepository.save(Notification.builder()
@@ -77,6 +81,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS, allEntries = true)
     public void notifyAllUsers(final NotificationType type, final String title,
                                final String message) {
         final List<User> users = userRepository.findByIsActiveTrue();
@@ -102,6 +107,7 @@ public class NotificationServiceImpl implements NotificationService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.NOTIFICATIONS)
     @Transactional(readOnly = true)
     public long getUnreadCount() {
         final User user = getAuthenticatedUser();
@@ -113,6 +119,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS)
     public NotificationResponse markAsRead(final Long id) {
         final User user = getAuthenticatedUser();
         final Notification notification = notificationRepository.findByIdAndUser(id, user)
@@ -132,6 +139,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS)
     public List<NotificationResponse> markAllAsRead() {
         final User user = getAuthenticatedUser();
         final List<Notification> notifications =
@@ -152,6 +160,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS)
     public void deleteNotification(final Long id) {
         final User user = getAuthenticatedUser();
         final Notification notification = notificationRepository.findByIdAndUser(id, user)
@@ -168,6 +177,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.NOTIFICATIONS, key = "#user.id")
     public void deleteAllForUser(final User user) {
         notificationRepository.deleteAll(notificationRepository.findByUser(user));
     }

@@ -3,6 +3,8 @@ package com.devlaunch.repository;
 import com.devlaunch.entity.InterviewSession;
 import com.devlaunch.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -38,6 +40,20 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
      * @return the number of interview sessions belonging to the user
      */
     long countByUser(User user);
+
+    /**
+     * Computes the average overall score across the user's interview
+     * sessions.
+     * <p>
+     * Used by the gamification engine to evaluate the Communication Pro
+     * achievement (average score &gt;= 80).
+     * </p>
+     *
+     * @param user the user whose sessions to average
+     * @return the average overall score (0 when the user has no sessions)
+     */
+    @Query("SELECT COALESCE(AVG(s.overallScore), 0) FROM InterviewSession s WHERE s.user = :user")
+    double averageScoreByUser(@Param("user") User user);
 
     /**
      * Finds a session by its client-generated identifier, verifying it

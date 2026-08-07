@@ -2,17 +2,26 @@ package com.devlaunch.service.impl;
 
 import com.devlaunch.dto.request.CreateStudyPlannerRequest;
 import com.devlaunch.dto.request.UpdateStudyPlannerRequest;
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.response.StudyPlannerResponse;
 import com.devlaunch.entity.StudyPlanner;
 import com.devlaunch.entity.User;
-import com.devlaunch.entity.enums.NotificationType;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.entity.enums.StudyStatus;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.StudyPlannerMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
+import com.devlaunch.messaging.event.StudyMilestone;
+import com.devlaunch.messaging.event.StudyTaskEvent;
+import com.devlaunch.messaging.event.StudyTaskType;
 import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
-import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.service.interfaces.StudyPlannerService;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,7 +55,7 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
     private final StudyPlannerRepository studyPlannerRepository;
     private final UserRepository userRepository;
     private final StudyPlannerMapper studyPlannerMapper;
-    private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
 
     /**
      * Constructs the study planner service with the required dependencies.
@@ -52,16 +63,16 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
      * @param studyPlannerRepository repository for study planner data access
      * @param userRepository         repository for user data access
      * @param studyPlannerMapper     mapper for DTO-entity conversions
-     * @param notificationService    service for creating user notifications
+     * @param eventPublisher         publisher for the messaging backbone
      */
     public StudyPlannerServiceImpl(final StudyPlannerRepository studyPlannerRepository,
                                    final UserRepository userRepository,
                                    final StudyPlannerMapper studyPlannerMapper,
-                                   final NotificationService notificationService) {
+                                   final EventPublisher eventPublisher) {
         this.studyPlannerRepository = studyPlannerRepository;
         this.userRepository = userRepository;
         this.studyPlannerMapper = studyPlannerMapper;
-        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -69,6 +80,10 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.STUDY)
+    })
     public StudyPlannerResponse createStudyPlanner(final CreateStudyPlannerRequest request) {
         final User user = getAuthenticatedUser();
 
@@ -81,6 +96,14 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
         // Persist the new study planner entry
         final StudyPlanner savedStudyPlanner = studyPlannerRepository.save(studyPlanner);
 
+        // Publish the created-task event; the consumer persists the
+        // scheduling notification asynchronously.
+        eventPublisher.publish(EventTopics.STUDY_REMINDER_KEY,
+                new StudyTaskEvent(savedStudyPlanner.getUser().getId(),
+                        savedStudyPlanner.getId(), savedStudyPlanner.getTitle(),
+                        savedStudyPlanner.getStudyDate(), StudyTaskType.CREATED,
+                        null, null, null));
+
         // Return the study planner data
         return studyPlannerMapper.toStudyPlannerResponse(savedStudyPlanner);
     }
@@ -89,13 +112,16 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.STUDY)
     @Transactional(readOnly = true)
     public List<StudyPlannerResponse> getAllStudyPlanners() {
         final User user = getAuthenticatedUser();
         final List<StudyPlanner> studyPlanners = studyPlannerRepository.findByUser(user);
+        // Mutable ArrayList so the cached list root carries JSON type metadata
+        // (immutable toList() results are final and cannot round-trip in Redis).
         return studyPlanners.stream()
                 .map(studyPlannerMapper::toStudyPlannerResponse)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
@@ -113,6 +139,10 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.STUDY)
+    })
     public StudyPlannerResponse updateStudyPlanner(final Long id,
                                                    final UpdateStudyPlannerRequest request) {
         final StudyPlanner studyPlanner = getStudyPlannerOwnedByAuthenticatedUser(id);
@@ -131,13 +161,10 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
         // Persist the updated study planner entry
         final StudyPlanner savedStudyPlanner = studyPlannerRepository.save(studyPlanner);
 
-        // Notify the user of study milestones when a task is newly completed.
-        // The completion date is passed explicitly (today) so the milestone
-        // counts never depend on when the audit timestamp flushes.
+        // Publish study milestone events when a task is newly completed.
         final StudyStatus newStatus = studyPlanner.getStatus();
         if (StudyStatus.COMPLETED.equals(newStatus) && !StudyStatus.COMPLETED.equals(previousStatus)) {
-            notifyCompletionMilestones(studyPlanner.getUser(), studyPlanner.getTitle(),
-                    LocalDate.now());
+            notifyCompletionMilestones(studyPlanner);
         }
 
         // Return the updated study planner data
@@ -149,30 +176,52 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.STUDY)
+    })
     public void deleteStudyPlanner(final Long id) {
         final StudyPlanner studyPlanner = getStudyPlannerOwnedByAuthenticatedUser(id);
         studyPlannerRepository.delete(studyPlanner);
     }
 
     /**
-     * Creates study milestone notifications for a newly completed task:
-     * the daily goal, a weekly target when a multiple of five completion
-     * days are reached in the current week, and a study streak milestone
-     * at three days and then every seven days.
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public int getCurrentStudyStreak() {
+        final User user = getAuthenticatedUser();
+        final Set<LocalDate> completionDays = studyPlannerRepository.findByUser(user).stream()
+                .filter(task -> StudyStatus.COMPLETED.equals(task.getStatus()))
+                .map(this::completionDate)
+                .collect(Collectors.toSet());
+        return calculateStreak(completionDays);
+    }
+
+    /**
+     * Publishes study task events for a newly completed task: the daily goal
+     * milestone always, plus the weekly target when a multiple of five
+     * completion days are reached in the current week, plus the study streak
+     * milestone at three days and then every seven days. The messaging
+     * consumer composes and persists the notifications.
      * <p>
-     * The task completed just now is passed as an explicit completion date
-     * so the milestone counts never depend on the audit-timestamp flush.
+     * The task completed just now is counted on its explicit completion date
+     * (today) so the milestone counts never depend on the audit-timestamp
+     * flush.
      * </p>
      *
-     * @param user         the user to notify
-     * @param taskTitle    the title of the completed task
-     * @param completedOn  the date the task was completed (today)
+     * @param studyPlanner the completed task
      */
-    private void notifyCompletionMilestones(final User user, final String taskTitle,
-                                            final LocalDate completedOn) {
-        notificationService.createNotification(user, NotificationType.STUDY,
-                "Daily goal completed",
-                "Task \"" + taskTitle + "\" was marked as completed. Keep up the momentum!");
+    private void notifyCompletionMilestones(final StudyPlanner studyPlanner) {
+        final User user = studyPlanner.getUser();
+        final String taskTitle = studyPlanner.getTitle();
+        final LocalDate completedOn = LocalDate.now();
+
+        eventPublisher.publish(EventTopics.STUDY_REMINDER_KEY,
+                new StudyTaskEvent(user.getId(), studyPlanner.getId(), taskTitle,
+                        studyPlanner.getStudyDate(), StudyTaskType.COMPLETED,
+                        StudyMilestone.DAILY, null, null));
 
         final List<StudyPlanner> completedTasks = studyPlannerRepository.findByUser(user).stream()
                 .filter(task -> StudyStatus.COMPLETED.equals(task.getStatus()))
@@ -191,19 +240,26 @@ public class StudyPlannerServiceImpl implements StudyPlannerService {
                 .filter(day -> !day.isBefore(weekStart))
                 .count();
         if (weeklyDays >= 5 && weeklyDays % 5 == 0) {
-            notificationService.createNotification(user, NotificationType.STUDY,
-                    "Weekly target achieved",
-                    "You completed tasks on " + weeklyDays
-                            + " days this week — weekly target reached!");
+            eventPublisher.publish(EventTopics.STUDY_REMINDER_KEY,
+                    new StudyTaskEvent(user.getId(), studyPlanner.getId(), taskTitle,
+                            studyPlanner.getStudyDate(), StudyTaskType.COMPLETED,
+                            StudyMilestone.WEEKLY, (int) weeklyDays, null));
         }
 
         // Streak milestone: 3 days, then every 7 days (3, 7, 14, 21, …)
         final int streak = calculateStreak(completionDays);
         if (streak >= 3 && (streak == 3 || streak % 7 == 0)) {
-            notificationService.createNotification(user, NotificationType.STUDY,
-                    "Study streak milestone",
-                    streak + "-day study streak! You're on fire — keep it going.");
+            eventPublisher.publish(EventTopics.STUDY_REMINDER_KEY,
+                    new StudyTaskEvent(user.getId(), studyPlanner.getId(), taskTitle,
+                            studyPlanner.getStudyDate(), StudyTaskType.COMPLETED,
+                            StudyMilestone.STREAK, streak, null));
         }
+
+        // Publish the gamification activity carrying the current streak; the
+        // consumer awards XP and evaluates the study achievements asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(user.getId(), ActivityType.STUDY_TASK_COMPLETED,
+                        streak, LocalDateTime.now()));
     }
 
     /**

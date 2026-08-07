@@ -50,6 +50,16 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
 
+  # Redis is the caching layer for expensive read operations (dashboard,
+  # GitHub/LeetCode analytics, study planner, job tracker, notifications).
+  # The app stays fully functional when Redis is unavailable — cache
+  # failures are logged and reads fall back to the database.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2000}
+
   # SMTP configuration used by the EmailService for password reset emails.
   # Leave MAIL_USERNAME/MAIL_PASSWORD empty in development — sending failures
   # are logged and never break the forgot-password flow.

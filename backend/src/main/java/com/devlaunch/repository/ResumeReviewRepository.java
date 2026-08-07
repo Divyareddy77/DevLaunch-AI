@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository interface for {@link ResumeReview} entity operations.
@@ -43,5 +44,29 @@ public interface ResumeReviewRepository extends JpaRepository<ResumeReview, Long
      *         or an empty list if none exist
      */
     List<ResumeReview> findByResume(Resume resume);
+
+    /**
+     * Counts the resume reviews performed by the specified user.
+     * <p>
+     * Used by the gamification engine to evaluate the Power User
+     * achievement (modules used).
+     * </p>
+     *
+     * @param user the user whose reviews to count
+     * @return the number of resume reviews belonging to the user
+     */
+    long countByUser(User user);
+
+    /**
+     * Finds the most recently created review of the specified user.
+     * <p>
+     * Used by the gamification engine for the latest ATS score of the
+     * progress read path.
+     * </p>
+     *
+     * @param user the user whose latest review to retrieve
+     * @return the latest review, or an empty {@link Optional}
+     */
+    Optional<ResumeReview> findFirstByUserOrderByCreatedAtDesc(User user);
 
 }

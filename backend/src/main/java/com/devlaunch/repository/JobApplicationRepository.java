@@ -43,4 +43,16 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
      */
     List<JobApplication> findByResume(Resume resume);
 
+    /**
+     * Counts the job applications owned by the specified user.
+     * <p>
+     * Used by the gamification engine to evaluate count-based achievements
+     * (e.g. First Application, Job Hunter).
+     * </p>
+     *
+     * @param user the user whose applications to count
+     * @return the number of job applications belonging to the user
+     */
+    long countByUser(User user);
+
 }

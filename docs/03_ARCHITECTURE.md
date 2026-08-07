@@ -342,7 +342,19 @@ The application follows these principles:
 
 ---
 
-# 15. Conclusion
+# 15. Achievements & Gamification
+
+A dedicated gamification bounded context rewards users for platform activity:
+
+- **Event-driven evaluation.** Every module publishes a lightweight `ActivityEvent` on the `gamification.activity` routing key when a resume is created, an ATS review completes, a job application is added, a mock interview finishes, a study task is completed, a GitHub/LeetCode account is connected (or freshly synced via the `AccountSyncEventPublisher`), or the placement readiness score updates. The `AchievementActivityConsumer` resolves the user and delegates to the gamification service.
+- **Single transactional write path.** `GamificationServiceImpl#recordActivity` awards the activity XP, evaluates the full badge catalog (progress computed from repository counts, event values, and the cached GitHub/LeetCode profiles), unlocks newly satisfied badges (awarding their XP reward), and raises the unlock / level-up notifications via the shared `NotificationEventProcessor` — all in one transaction. The unique constraint on `user_achievements` is the duplicate-prevention backstop.
+- **Level system.** `LevelService` maps total XP to a level using the explicit spec table (0/100/250/500/900/1400) and continues the curve automatically from level 7 (increment grows by 50 per level).
+- **Redis caching.** Summary, progress, unlocked badges, and XP history are cached under the `achievements` cache (5-minute TTL, user-scoped keys) and evicted on every activity write; a `leaderboard` cache name is reserved for the future global ranking.
+- **No coupling back into business modules.** Services only publish events; they never read or write gamification tables, and the gamification module never modifies existing REST contracts (the dashboard and profile simply consume the new read endpoints).
+
+---
+
+# 16. Conclusion
 
 The DevLaunch architecture is designed to provide a clean, modular, secure, and scalable foundation for the application.
 

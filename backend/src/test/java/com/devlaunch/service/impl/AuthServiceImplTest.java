@@ -9,13 +9,15 @@ import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.InvalidPasswordResetTokenException;
 import com.devlaunch.exception.PasswordResetTokenExpiredException;
 import com.devlaunch.mapper.AuthMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ForgotPasswordEmailEvent;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.PasswordResetTokenRepository;
 import com.devlaunch.repository.RoleRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.security.JwtService;
 import com.devlaunch.service.interfaces.AuthService;
-import com.devlaunch.service.interfaces.EmailService;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,7 @@ import static org.mockito.Mockito.when;
  * <p>
  * Verifies the generic response contract (account existence is never
  * disclosed), single-use token handling, expiry enforcement, password
- * matching, BCrypt encoding, notification creation, and the audit logs.
+ * matching, BCrypt encoding, event publishing, and the audit logs.
  * </p>
  *
  * @author DevLaunch
@@ -71,9 +73,7 @@ class AuthServiceImplTest {
     @Mock
     private PasswordResetTokenRepository passwordResetTokenRepository;
     @Mock
-    private EmailService emailService;
-    @Mock
-    private NotificationService notificationService;
+    private EventPublisher eventPublisher;
 
     private AuthService service;
 
@@ -82,7 +82,7 @@ class AuthServiceImplTest {
         service = new AuthServiceImpl(
                 userRepository, roleRepository, authMapper, passwordEncoder,
                 authenticationManager, jwtService, passwordResetTokenRepository,
-                emailService, notificationService,
+                eventPublisher,
                 86_400_000L, 30L);
     }
 
@@ -132,7 +132,8 @@ class AuthServiceImplTest {
                 LocalDateTime.now(), saved.getExpiresAt()).toMinutes();
         assertTrue(minutes >= 29 && minutes <= 30, "expiry should be about 30 minutes");
 
-        verify(emailService).sendPasswordResetEmail(eq(user), eq(saved.getToken()));
+        verify(eventPublisher).publish(eq(EventTopics.FORGOT_PASSWORD_EMAIL_KEY),
+                eq(new ForgotPasswordEmailEvent(user.getId(), saved.getToken())));
     }
 
     @Test
@@ -146,7 +147,7 @@ class AuthServiceImplTest {
         assertEquals("If an account exists, a password reset link has been sent.",
                 response.getMessage());
         verify(passwordResetTokenRepository, never()).save(any());
-        verify(emailService, never()).sendPasswordResetEmail(any(), any());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -162,7 +163,7 @@ class AuthServiceImplTest {
         assertEquals("If an account exists, a password reset link has been sent.",
                 response.getMessage());
         verify(passwordResetTokenRepository, never()).save(any());
-        verify(emailService, never()).sendPasswordResetEmail(any(), any());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -204,11 +205,11 @@ class AuthServiceImplTest {
         verify(userRepository).save(user);
         assertEquals("new-hash", user.getPassword());
 
-        // The user is notified about the completed reset.
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.SYSTEM),
-                eq("Password Reset Successful"),
-                eq("Your password has been changed successfully."));
+        // The completed reset is published as an event for the consumer.
+        verify(eventPublisher).publish(eq(EventTopics.PASSWORD_RESET_SUCCESS_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "Password Reset Successful",
+                        "Your password has been changed successfully.")));
     }
 
     @Test
@@ -230,7 +231,7 @@ class AuthServiceImplTest {
 
         assertEquals("Invalid password reset link.", ex.getMessage());
         verify(userRepository, never()).save(any());
-        verify(notificationService, never()).createNotification(any(), any(), any(), any());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -268,7 +269,7 @@ class AuthServiceImplTest {
 
         assertEquals("Invalid password reset link.", ex.getMessage());
         verify(userRepository, never()).save(any());
-        verify(notificationService, never()).createNotification(any(), any(), any(), any());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 
     @Test

@@ -68,6 +68,19 @@ public class MockInterviewSubmitRequest {
     private Integer durationSeconds;
 
     /**
+     * Optional filler-word count reported by the client's speaking
+     * analysis. {@code null} when the client does not provide it — the
+     * field is additive and fully backward compatible.
+     */
+    private Integer fillerCount;
+
+    /**
+     * Optional speaking pace (words per minute) reported by the client's
+     * speaking analysis. {@code null} when the client does not provide it.
+     */
+    private Double speakingPace;
+
+    /**
      * The question/answer pairs to evaluate.
      * <p>
      * Must contain at least one answer, and each entry is validated.
