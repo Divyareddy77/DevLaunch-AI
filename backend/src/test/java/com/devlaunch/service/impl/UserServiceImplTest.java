@@ -4,8 +4,10 @@ import com.devlaunch.dto.response.UserResponse;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.mapper.AuthMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.UserRepository;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,14 +54,14 @@ class UserServiceImplTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private NotificationService notificationService;
+    private EventPublisher eventPublisher;
 
     private UserServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new UserServiceImpl(
-                userRepository, authMapper, passwordEncoder, notificationService);
+                userRepository, authMapper, passwordEncoder, eventPublisher);
     }
 
     @AfterEach
@@ -96,10 +98,10 @@ class UserServiceImplTest {
 
         assertEquals(USER_EMAIL, response.getEmail());
         assertEquals("octocat", user.getGithubUsername());
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.SYSTEM),
-                eq("GitHub Account Connected"),
-                eq("GitHub account connected successfully."));
+        verify(eventPublisher).publish(eq(EventTopics.GITHUB_CONNECTED_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "GitHub Account Connected",
+                        "GitHub account connected successfully.")));
     }
 
     @Test
@@ -113,10 +115,10 @@ class UserServiceImplTest {
         service.disconnectGitHub();
 
         assertNull(user.getGithubUsername());
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.SYSTEM),
-                eq("GitHub Account Disconnected"),
-                eq("GitHub account disconnected."));
+        verify(eventPublisher).publish(eq(EventTopics.GITHUB_CONNECTED_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "GitHub Account Disconnected",
+                        "GitHub account disconnected.")));
     }
 
     @Test
@@ -129,10 +131,10 @@ class UserServiceImplTest {
         service.connectLeetCode("  leetcode_user  ");
 
         assertEquals("leetcode_user", user.getLeetcodeUsername());
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.SYSTEM),
-                eq("LeetCode Account Connected"),
-                eq("LeetCode account connected successfully."));
+        verify(eventPublisher).publish(eq(EventTopics.LEETCODE_CONNECTED_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "LeetCode Account Connected",
+                        "LeetCode account connected successfully.")));
     }
 
     @Test
@@ -146,10 +148,10 @@ class UserServiceImplTest {
         service.disconnectLeetCode();
 
         assertNull(user.getLeetcodeUsername());
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.SYSTEM),
-                eq("LeetCode Account Disconnected"),
-                eq("LeetCode account disconnected."));
+        verify(eventPublisher).publish(eq(EventTopics.LEETCODE_CONNECTED_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "LeetCode Account Disconnected",
+                        "LeetCode account disconnected.")));
     }
 
 }

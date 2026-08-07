@@ -72,4 +72,17 @@ public interface StudyPlannerService {
      */
     void deleteStudyPlanner(Long id);
 
+    /**
+     * Computes the current consecutive-day completion streak of the
+     * authenticated user.
+     * <p>
+     * A streak continues from today, or from yesterday when today has no
+     * completion yet, and counts backwards over consecutive days.
+     * Shared with the gamification engine for the consistency badge.
+     * </p>
+     *
+     * @return the length of the current streak in days
+     */
+    int getCurrentStudyStreak();
+
 }

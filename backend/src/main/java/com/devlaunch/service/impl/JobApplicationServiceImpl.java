@@ -1,5 +1,6 @@
 package com.devlaunch.service.impl;
 
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.request.CreateInterviewNoteRequest;
 import com.devlaunch.dto.request.CreateJobApplicationRequest;
 import com.devlaunch.dto.request.ScheduleInterviewRequest;
@@ -19,6 +20,7 @@ import com.devlaunch.entity.InterviewSchedule;
 import com.devlaunch.entity.JobApplication;
 import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.entity.enums.ApplicationPriority;
 import com.devlaunch.entity.enums.ApplicationStatus;
 import com.devlaunch.entity.enums.AttachmentCategory;
@@ -26,6 +28,10 @@ import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.TimelineEventType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.JobApplicationMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.ApplicationAttachmentRepository;
 import com.devlaunch.repository.ApplicationTimelineEventRepository;
 import com.devlaunch.repository.InterviewNoteRepository;
@@ -35,8 +41,10 @@ import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.AttachmentStorageService;
 import com.devlaunch.service.interfaces.JobApplicationService;
-import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.util.EnumLabels;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -68,8 +76,9 @@ import java.util.stream.Collectors;
  * respectively. Every operation verifies that the affected record belongs
  * to the authenticated user. Milestones (status changes, interview
  * scheduling/cancelling, attachment uploads) are recorded on the
- * application timeline and announced through the existing
- * {@link NotificationService} — no notification logic is duplicated here.
+ * application timeline and published as lightweight reminder events on the
+ * messaging backbone — the consumers persist the notifications through the
+ * existing notification module, so no notification logic is duplicated here.
  * </p>
  *
  * @author DevLaunch
@@ -86,7 +95,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final JobApplicationMapper jobApplicationMapper;
-    private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
     private final ApplicationTimelineEventRepository timelineEventRepository;
     private final InterviewScheduleRepository interviewScheduleRepository;
     private final InterviewNoteRepository interviewNoteRepository;
@@ -100,7 +109,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      * @param resumeRepository           repository for resume data access
      * @param userRepository             repository for user data access
      * @param jobApplicationMapper       mapper for DTO-entity conversions
-     * @param notificationService        service for creating user notifications
+     * @param eventPublisher             publisher for the messaging backbone
      * @param timelineEventRepository    repository for application timeline events
      * @param interviewScheduleRepository repository for interview schedules
      * @param interviewNoteRepository    repository for private interview notes
@@ -111,7 +120,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                                      final ResumeRepository resumeRepository,
                                      final UserRepository userRepository,
                                      final JobApplicationMapper jobApplicationMapper,
-                                     final NotificationService notificationService,
+                                     final EventPublisher eventPublisher,
                                      final ApplicationTimelineEventRepository timelineEventRepository,
                                      final InterviewScheduleRepository interviewScheduleRepository,
                                      final InterviewNoteRepository interviewNoteRepository,
@@ -121,7 +130,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.jobApplicationMapper = jobApplicationMapper;
-        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
         this.timelineEventRepository = timelineEventRepository;
         this.interviewScheduleRepository = interviewScheduleRepository;
         this.interviewNoteRepository = interviewNoteRepository;
@@ -134,6 +143,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public JobApplicationResponse createJobApplication(final CreateJobApplicationRequest request) {
         final User user = getAuthenticatedUser();
 
@@ -166,11 +179,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     EnumLabels.toLabel(savedJobApplication.getStatus()), null);
         }
 
-        // Notify the user that their application was added to the tracker
-        notificationService.createNotification(user, NotificationType.JOB,
-                "Job application added",
-                "Your application for " + jobApplication.getJobRole()
-                        + " at " + jobApplication.getCompanyName() + " was added to your tracker.");
+        // Publish the reminder event; the consumer persists the notification
+        eventPublisher.publish(EventTopics.JOB_APPLICATION_REMINDER_KEY,
+                new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Job application added",
+                        "Your application for " + jobApplication.getJobRole()
+                                + " at " + jobApplication.getCompanyName() + " was added to your tracker."));
+
+        // Publish the gamification activity; the consumer awards XP and
+        // evaluates the job tracker achievements asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(user.getId(), ActivityType.JOB_APPLICATION_CREATED,
+                        null, LocalDateTime.now()));
 
         // Return the job application data
         return enrichResponse(jobApplicationMapper.toJobApplicationResponse(savedJobApplication),
@@ -181,6 +201,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.JOB)
     @Transactional(readOnly = true)
     public List<JobApplicationResponse> getAllJobApplications() {
         final User user = getAuthenticatedUser();
@@ -204,6 +225,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public JobApplicationResponse updateJobApplication(final Long id,
                                                        final UpdateJobApplicationRequest request) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
@@ -270,6 +295,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public JobApplicationResponse updateApplicationStatus(final Long id,
                                                           final ApplicationStatus status) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
@@ -298,6 +327,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public void deleteJobApplication(final Long id) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
 
@@ -348,6 +381,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public InterviewScheduleResponse scheduleInterview(final Long id,
                                                        final ScheduleInterviewRequest request) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
@@ -371,14 +408,15 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         addTimelineEvent(jobApplication, TimelineEventType.INTERVIEW_SCHEDULED,
                 "Interview scheduled", scheduleNote);
 
-        // Notify the user through the existing notification module
-        notificationService.createNotification(jobApplication.getUser(), NotificationType.JOB,
-                "Interview scheduled",
-                "Your interview for " + jobApplication.getJobRole() + " at "
-                        + jobApplication.getCompanyName() + " is scheduled for "
-                        + saved.getScheduledDate()
-                        + (saved.getScheduledTime() == null ? "" : " at " + saved.getScheduledTime())
-                        + ".");
+        // Publish the reminder event; the consumer persists the notification
+        eventPublisher.publish(EventTopics.JOB_APPLICATION_REMINDER_KEY,
+                new NotificationEvent(jobApplication.getUser().getId(), NotificationType.JOB,
+                        "Interview scheduled",
+                        "Your interview for " + jobApplication.getJobRole() + " at "
+                                + jobApplication.getCompanyName() + " is scheduled for "
+                                + saved.getScheduledDate()
+                                + (saved.getScheduledTime() == null ? "" : " at " + saved.getScheduledTime())
+                                + "."));
 
         return toInterviewResponse(saved);
     }
@@ -388,6 +426,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public InterviewScheduleResponse updateInterview(final Long interviewId,
                                                      final UpdateInterviewScheduleRequest request) {
         final InterviewSchedule interview = getInterviewOwnedByAuthenticatedUser(interviewId);
@@ -410,11 +452,12 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         if (!wasCancelled && Boolean.TRUE.equals(saved.getCancelled())) {
             addTimelineEvent(saved.getApplication(), TimelineEventType.INTERVIEW_CANCELLED,
                     "Interview cancelled", describeInterview(saved));
-            notificationService.createNotification(saved.getApplication().getUser(),
-                    NotificationType.JOB, "Interview cancelled",
-                    "Your interview for " + saved.getApplication().getJobRole() + " at "
-                            + saved.getApplication().getCompanyName()
-                            + " scheduled for " + saved.getScheduledDate() + " was cancelled.");
+            eventPublisher.publish(EventTopics.JOB_APPLICATION_REMINDER_KEY,
+                    new NotificationEvent(saved.getApplication().getUser().getId(),
+                            NotificationType.JOB, "Interview cancelled",
+                            "Your interview for " + saved.getApplication().getJobRole() + " at "
+                                    + saved.getApplication().getCompanyName()
+                                    + " scheduled for " + saved.getScheduledDate() + " was cancelled."));
         }
 
         return toInterviewResponse(saved);
@@ -425,6 +468,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD),
+            @CacheEvict(cacheNames = CacheNames.JOB)
+    })
     public InterviewScheduleResponse cancelInterview(final Long interviewId) {
         final InterviewSchedule interview = getInterviewOwnedByAuthenticatedUser(interviewId);
         interview.setCancelled(Boolean.TRUE);
@@ -432,11 +479,12 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
         addTimelineEvent(saved.getApplication(), TimelineEventType.INTERVIEW_CANCELLED,
                 "Interview cancelled", describeInterview(saved));
-        notificationService.createNotification(saved.getApplication().getUser(),
-                NotificationType.JOB, "Interview cancelled",
-                "Your interview for " + saved.getApplication().getJobRole() + " at "
-                        + saved.getApplication().getCompanyName() + " scheduled for "
-                        + saved.getScheduledDate() + " was cancelled.");
+        eventPublisher.publish(EventTopics.JOB_APPLICATION_REMINDER_KEY,
+                new NotificationEvent(saved.getApplication().getUser().getId(),
+                        NotificationType.JOB, "Interview cancelled",
+                        "Your interview for " + saved.getApplication().getJobRole() + " at "
+                                + saved.getApplication().getCompanyName() + " scheduled for "
+                                + saved.getScheduledDate() + " was cancelled."));
 
         return toInterviewResponse(saved);
     }
@@ -561,6 +609,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.JOB)
     @Transactional(readOnly = true)
     public ApplicationAnalyticsResponse getAnalytics() {
         final User user = getAuthenticatedUser();
@@ -709,6 +758,9 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                                 attachment -> attachment.getApplication().getId(),
                                 Collectors.counting()));
 
+        // Mutable ArrayList so the cached list root carries JSON type metadata
+        // (immutable List.of()/toList() results are final and deserialize as
+        // plain arrays, which the Redis cache cannot round-trip).
         return applications.stream()
                 .map(app -> {
                     final List<InterviewSchedule> interviews =
@@ -729,7 +781,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     }
                     return response;
                 })
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
@@ -812,27 +864,36 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      */
     private void notifyStatusChange(final User user, final String company, final String role,
                                     final ApplicationStatus status) {
+        final String title;
+        final String message;
         switch (status) {
-            case INTERVIEW -> notificationService.createNotification(user, NotificationType.JOB,
-                    "Interview scheduled",
-                    "Great news! Your application at " + company
-                            + " has moved to the interview stage. Time to prepare!");
-            case OFFER -> notificationService.createNotification(user, NotificationType.JOB,
-                    "Offer received",
-                    "Congratulations! You received an offer from " + company + ".");
-            case REJECTED -> notificationService.createNotification(user, NotificationType.JOB,
-                    "Application rejected",
-                    "Your application at " + company
-                            + " was rejected. Don't give up — keep applying!");
-            case ASSESSMENT -> notificationService.createNotification(user, NotificationType.JOB,
-                    "Assessment required",
-                    "Your application at " + company
-                            + " has moved to the assessment stage. Complete the assessment to keep moving forward!");
-            default -> notificationService.createNotification(user, NotificationType.JOB,
-                    "Status updated",
-                    "Your application for " + role + " at " + company
-                            + " is now " + EnumLabels.toLabel(status) + ".");
+            case INTERVIEW -> {
+                title = "Interview scheduled";
+                message = "Great news! Your application at " + company
+                        + " has moved to the interview stage. Time to prepare!";
+            }
+            case OFFER -> {
+                title = "Offer received";
+                message = "Congratulations! You received an offer from " + company + ".";
+            }
+            case REJECTED -> {
+                title = "Application rejected";
+                message = "Your application at " + company
+                        + " was rejected. Don't give up — keep applying!";
+            }
+            case ASSESSMENT -> {
+                title = "Assessment required";
+                message = "Your application at " + company
+                        + " has moved to the assessment stage. Complete the assessment to keep moving forward!";
+            }
+            default -> {
+                title = "Status updated";
+                message = "Your application for " + role + " at " + company
+                        + " is now " + EnumLabels.toLabel(status) + ".";
+            }
         }
+        eventPublisher.publish(EventTopics.JOB_APPLICATION_REMINDER_KEY,
+                new NotificationEvent(user.getId(), NotificationType.JOB, title, message));
     }
 
     /**

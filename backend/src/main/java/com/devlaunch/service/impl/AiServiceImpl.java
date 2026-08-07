@@ -17,6 +17,7 @@ import com.devlaunch.dto.response.ProjectAnalysisResponse;
 import com.devlaunch.dto.response.ResumeReviewResponse;
 import com.devlaunch.dto.response.ResumeReviewSuggestion;
 import com.devlaunch.dto.response.ScoreTrendPoint;
+import com.devlaunch.cache.CacheNames;
 import com.devlaunch.dto.response.TranscribeResponse;
 import com.devlaunch.dto.response.SkillsAnalysisResponse;
 import com.devlaunch.dto.response.SummaryAnalysisResponse;
@@ -31,10 +32,15 @@ import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.Skill;
 import com.devlaunch.entity.User;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.entity.enums.InterviewDifficulty;
 import com.devlaunch.entity.enums.InterviewType;
-import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
+import com.devlaunch.messaging.event.MockInterviewCompletedEvent;
+import com.devlaunch.messaging.event.ResumeReviewedEvent;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
 import com.devlaunch.repository.EducationRepository;
@@ -56,9 +62,8 @@ import com.devlaunch.service.ai.ResumeReviewProvider;
 import com.devlaunch.service.ai.WhisperTranscription;
 import com.devlaunch.service.interfaces.AiService;
 import com.devlaunch.service.interfaces.InterviewQuestionBankService;
-import com.devlaunch.service.interfaces.NotificationService;
-import com.devlaunch.util.EnumLabels;
 import org.slf4j.Logger;
+import org.springframework.cache.annotation.CacheEvict;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
@@ -93,6 +98,14 @@ import java.util.stream.Collectors;
  * any failure or when no provider is configured, the deterministic sample
  * provider is used so the features remain fully functional.
  * </p>
+ * <p>
+ * Messaging boundary: both flows publish domain events on the RabbitMQ
+ * backbone — the resume review flow emits a resume-reviewed event (the
+ * consumer stores the review history and the notifications) and the mock
+ * interview flow emits an interview-completed event carrying the metrics
+ * (the consumer reproduces the milestone notifications). No notification
+ * or dashboard side effect happens inside the service.
+ * </p>
  *
  * @author DevLaunch
  */
@@ -106,17 +119,11 @@ public class AiServiceImpl implements AiService {
     /** The question length used when the client does not specify one. */
     private static final int DEFAULT_QUESTION_LENGTH = 10;
 
-    /** Scores at or above this are celebrated as outstanding. */
-    private static final int OUTSTANDING_SCORE = 90;
-
     /** Scores at or above this count as a successful interview. */
     private static final int SUCCESS_SCORE = 70;
 
     /** The number of recent sessions included in the score trend. */
     private static final int TREND_LIMIT = 10;
-
-    /** Streaks of at least this many days are worth celebrating. */
-    private static final int STREAK_NOTIFICATION_MIN = 2;
 
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
@@ -134,7 +141,7 @@ public class AiServiceImpl implements AiService {
     private final MockInterviewProvider openAiMockInterviewProvider;
     private final MockInterviewProvider sampleMockInterviewProvider;
     private final OpenAiWhisperTranscriber whisperTranscriber;
-    private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
 
     /**
      * Constructs the AI service with the required dependencies.
@@ -155,7 +162,7 @@ public class AiServiceImpl implements AiService {
      * @param openAiMockInterviewProvider  the primary LLM mock interview provider
      * @param sampleMockInterviewProvider  the deterministic mock interview fallback
      * @param whisperTranscriber           the shared Whisper speech-to-text client
-     * @param notificationService          service for creating user notifications
+     * @param eventPublisher               publisher for the messaging backbone
      */
     public AiServiceImpl(final ResumeRepository resumeRepository,
                          final UserRepository userRepository,
@@ -177,7 +184,7 @@ public class AiServiceImpl implements AiService {
                          @Qualifier("sampleMockInterviewProvider")
                          final MockInterviewProvider sampleMockInterviewProvider,
                          final OpenAiWhisperTranscriber whisperTranscriber,
-                         final NotificationService notificationService) {
+                         final EventPublisher eventPublisher) {
         this.resumeRepository = resumeRepository;
         this.userRepository = userRepository;
         this.educationRepository = educationRepository;
@@ -194,7 +201,7 @@ public class AiServiceImpl implements AiService {
         this.openAiMockInterviewProvider = openAiMockInterviewProvider;
         this.sampleMockInterviewProvider = sampleMockInterviewProvider;
         this.whisperTranscriber = whisperTranscriber;
-        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -208,35 +215,28 @@ public class AiServiceImpl implements AiService {
         final ResumeContent content = buildResumeContent(resume);
         final ResumeReviewAnalysis analysis = analyze(content, request.getTargetRole());
 
-        // Snapshot the previous best review so score improvements can be
-        // celebrated before the new review is persisted.
+        // Snapshot the previous best score so the consumer can celebrate an
+        // improvement once it stores the new review history row. Ordered by
+        // creation time (not id) so the most recent review is always the
+        // baseline, even if rows are ever removed or re-inserted.
         final ResumeReview previousReview = resumeReviewRepository.findByResume(resume).stream()
-                .max(Comparator.comparing(ResumeReview::getId))
+                .max(Comparator.comparing(ResumeReview::getCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .orElse(null);
 
-        // Persist a summary record of this review so the admin module can
-        // monitor AI resume review activity. The full analysis is not stored.
-        resumeReviewRepository.save(ResumeReview.builder()
-                .user(resume.getUser())
-                .resume(resume)
-                .targetRole(request.getTargetRole())
-                .resumeScore(analysis.resumeScore())
-                .atsScore(analysis.atsScore())
-                .build());
+        // Publish the review-completed event; the consumer stores the review
+        // history row (used by the admin module) and persists the completion
+        // and score-improvement notifications asynchronously.
+        eventPublisher.publish(EventTopics.RESUME_REVIEW_COMPLETED_KEY,
+                new ResumeReviewedEvent(resume.getUser().getId(), resume.getId(),
+                        request.getTargetRole(), analysis.resumeScore(), analysis.atsScore(),
+                        previousReview == null ? null : previousReview.getResumeScore()));
 
-        // Notify the user that their review completed
-        notificationService.createNotification(resume.getUser(), NotificationType.RESUME_REVIEW,
-                "ATS Resume Review completed",
-                "Your ATS Resume Review has been completed. Your resume scored "
-                        + analysis.atsScore() + "/100. Check the report for improvements.");
-
-        // Celebrate an improved score over the previous best review
-        if (previousReview != null && analysis.resumeScore() > previousReview.getResumeScore()) {
-            notificationService.createNotification(resume.getUser(), NotificationType.RESUME_REVIEW,
-                    "Resume score improved",
-                    "Your resume score improved from " + previousReview.getResumeScore()
-                            + " to " + analysis.resumeScore() + ". Great progress!");
-        }
+        // Publish the gamification activity; the consumer awards XP and
+        // evaluates the ATS achievements asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(resume.getUser().getId(), ActivityType.RESUME_REVIEWED,
+                        analysis.atsScore(), LocalDateTime.now()));
 
         log.info("Resume review completed for resume id={}: resumeScore={}, atsScore={}",
                 resume.getId(), analysis.resumeScore(), analysis.atsScore());
@@ -278,6 +278,7 @@ public class AiServiceImpl implements AiService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.DASHBOARD)
     public MockInterviewFeedbackResponse submitMockInterview(final MockInterviewSubmitRequest request) {
         final User user = getAuthenticatedUser();
 
@@ -331,54 +332,31 @@ public class AiServiceImpl implements AiService {
                 .build();
         interviewSessionRepository.save(session);
 
-        // Always notify the user that the interview completed
-        notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
-                "Interview completed",
-                "Your " + EnumLabels.toLabel(request.getInterviewType())
-                        + " mock interview scored " + evaluation.overallScore()
-                        + "/100. Review the feedback to level up.");
-
-        // Celebrate an outstanding performance
-        if (evaluation.overallScore() >= OUTSTANDING_SCORE) {
-            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
-                    "Outstanding interview score",
-                    "You scored " + evaluation.overallScore()
-                            + "/100 — an outstanding performance. Keep it up!");
-        }
-
-        // Celebrate a new personal best over the previous best session
-        if (evaluation.overallScore() > previousMaxScore) {
-            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
-                    "New highest score",
-                    "New personal best! You scored " + evaluation.overallScore()
-                            + "/100 in your " + EnumLabels.toLabel(request.getInterviewType())
-                            + " interview.");
-        } else {
-            // Otherwise celebrate an improved average across all sessions
-            final long previousSum = previousSessions.stream()
-                    .mapToInt(InterviewSession::getOverallScore)
-                    .sum();
-            final double newAverage =
-                    (previousSum + evaluation.overallScore()) / (double) (previousSessions.size() + 1);
-            if (newAverage > previousAverageScore) {
-                final double roundedAverage = Math.round(newAverage * 10.0) / 10.0;
-                notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
-                        "Average score improved",
-                        "Your average interview score improved to " + roundedAverage
-                                + "/100. Consistency pays off!");
-            }
-        }
-
-        // Celebrate a growing practice streak
+        // Publish the completion event carrying the metrics; the consumer
+        // reproduces the milestone notifications and logs the metrics for
+        // the dashboard aggregation pipeline.
         final List<InterviewSession> sessionsWithNew = new ArrayList<>(previousSessions);
         sessionsWithNew.add(session);
         final int newStreak = currentStreak(sessionsWithNew);
-        if (newStreak >= STREAK_NOTIFICATION_MIN && newStreak > previousStreak) {
-            notificationService.createNotification(user, NotificationType.MOCK_INTERVIEW,
-                    "Interview streak",
-                    "You've practised on " + newStreak + " consecutive day"
-                            + (newStreak == 1 ? "" : "s") + " — consistency builds confidence!");
-        }
+        final long previousSum = previousSessions.stream()
+                .mapToInt(InterviewSession::getOverallScore)
+                .sum();
+
+        eventPublisher.publish(EventTopics.MOCK_INTERVIEW_COMPLETED_KEY,
+                new MockInterviewCompletedEvent(
+                        user.getId(), request.getSessionId(), request.getInterviewType(),
+                        evaluation.overallScore(), evaluation.confidenceScore(),
+                        evaluation.communicationScore(),
+                        request.getFillerCount(), request.getSpeakingPace(),
+                        request.getDurationSeconds(),
+                        previousMaxScore, previousAverageScore, previousStreak,
+                        previousSessions.size(), previousSum, newStreak));
+
+        // Publish the gamification activity; the consumer awards XP and
+        // evaluates the interview achievements asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(user.getId(), ActivityType.INTERVIEW_COMPLETED,
+                        evaluation.overallScore(), LocalDateTime.now()));
 
         log.info("Mock interview submitted for user id={}, type={}: overallScore={}",
                 user.getId(), request.getInterviewType(), evaluation.overallScore());

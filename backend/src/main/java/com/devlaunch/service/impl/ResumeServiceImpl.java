@@ -9,7 +9,11 @@ import com.devlaunch.entity.ResumeTemplate;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.exception.ResourceNotFoundException;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.mapper.ResumeMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.ResumeTemplateRepository;
 import com.devlaunch.repository.UserRepository;
@@ -45,6 +49,7 @@ public class ResumeServiceImpl implements ResumeService {
     private final UserRepository userRepository;
     private final ResumeMapper resumeMapper;
     private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
 
     /**
      * Constructs the resume service with the required dependencies.
@@ -54,17 +59,20 @@ public class ResumeServiceImpl implements ResumeService {
      * @param userRepository           repository for user data access
      * @param resumeMapper             mapper for DTO-entity conversions
      * @param notificationService      service for creating user notifications
+     * @param eventPublisher           publisher for the messaging backbone
      */
     public ResumeServiceImpl(final ResumeRepository resumeRepository,
                              final ResumeTemplateRepository resumeTemplateRepository,
                              final UserRepository userRepository,
                              final ResumeMapper resumeMapper,
-                             final NotificationService notificationService) {
+                             final NotificationService notificationService,
+                             final EventPublisher eventPublisher) {
         this.resumeRepository = resumeRepository;
         this.resumeTemplateRepository = resumeTemplateRepository;
         this.userRepository = userRepository;
         this.resumeMapper = resumeMapper;
         this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -88,6 +96,12 @@ public class ResumeServiceImpl implements ResumeService {
         notificationService.createNotification(user, NotificationType.RESUME,
                 "Resume created",
                 "Your resume was created successfully. Keep adding details to strengthen your profile.");
+
+        // Publish the activity event; the gamification consumer awards XP and
+        // evaluates achievements (Resume Explorer) asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(user.getId(), ActivityType.RESUME_CREATED, null,
+                        java.time.LocalDateTime.now()));
 
         // Return the resume data
         return resumeMapper.toResumeResponse(savedResume);

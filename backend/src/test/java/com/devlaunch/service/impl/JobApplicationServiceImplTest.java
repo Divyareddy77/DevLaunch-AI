@@ -13,6 +13,9 @@ import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.TimelineEventType;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.JobApplicationMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.ApplicationAttachmentRepository;
 import com.devlaunch.repository.ApplicationTimelineEventRepository;
 import com.devlaunch.repository.InterviewNoteRepository;
@@ -21,7 +24,6 @@ import com.devlaunch.repository.JobApplicationRepository;
 import com.devlaunch.repository.ResumeRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.AttachmentStorageService;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -56,11 +57,11 @@ import static org.mockito.Mockito.when;
  * Unit tests for the placement management features in
  * {@link JobApplicationServiceImpl}.
  * <p>
- * Verifies automatic timeline recording, status-change notifications
- * (reusing the existing notification module), interview scheduling and
- * cancelling, and the analytics overview. All repository access is mocked
- * and every test authenticates as a fixed user so ownership scoping can be
- * asserted.
+ * Verifies automatic timeline recording, reminder-event publishing for
+ * status changes (consumed by the messaging backbone), interview scheduling
+ * and cancelling, and the analytics overview. All repository access is
+ * mocked and every test authenticates as a fixed user so ownership scoping
+ * can be asserted.
  * </p>
  *
  * @author DevLaunch
@@ -79,7 +80,7 @@ class JobApplicationServiceImplTest {
     @Mock
     private JobApplicationMapper jobApplicationMapper;
     @Mock
-    private NotificationService notificationService;
+    private EventPublisher eventPublisher;
     @Mock
     private ApplicationTimelineEventRepository timelineEventRepository;
     @Mock
@@ -97,7 +98,7 @@ class JobApplicationServiceImplTest {
     void setUp() {
         service = new JobApplicationServiceImpl(
                 jobApplicationRepository, resumeRepository, userRepository,
-                jobApplicationMapper, notificationService, timelineEventRepository,
+                jobApplicationMapper, eventPublisher, timelineEventRepository,
                 interviewScheduleRepository, interviewNoteRepository,
                 attachmentRepository, attachmentStorageService);
     }
@@ -159,9 +160,11 @@ class JobApplicationServiceImplTest {
         assertEquals(TimelineEventType.ADDED, captor.getAllValues().get(0).getEventType());
         assertEquals(TimelineEventType.APPLIED, captor.getAllValues().get(1).getEventType());
 
-        // The existing notification module is reused — no duplicate logic
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.JOB), eq("Job application added"), anyString());
+        // The reminder event is published for the messaging consumer
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Job application added",
+                        "Your application for Software Engineer at Acme was added to your tracker.")));
     }
 
     // ─── Status moves (Kanban) ──────────────────────────────────────────────
@@ -191,8 +194,10 @@ class JobApplicationServiceImplTest {
         assertEquals(TimelineEventType.INTERVIEW, captor.getValue().getEventType());
         assertEquals("Interview", captor.getValue().getTitle());
 
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.JOB), eq("Interview scheduled"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Interview scheduled",
+                        "Great news! Your application at Acme has moved to the interview stage. Time to prepare!")));
     }
 
     @Test
@@ -209,8 +214,10 @@ class JobApplicationServiceImplTest {
 
         service.updateApplicationStatus(1L, ApplicationStatus.OFFER);
 
-        verify(notificationService).createNotification(
-                any(User.class), eq(NotificationType.JOB), eq("Offer received"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Offer received",
+                        "Congratulations! You received an offer from Acme.")));
     }
 
     @Test
@@ -227,8 +234,11 @@ class JobApplicationServiceImplTest {
 
         service.updateApplicationStatus(1L, ApplicationStatus.ASSESSMENT);
 
-        verify(notificationService).createNotification(
-                any(User.class), eq(NotificationType.JOB), eq("Assessment required"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Assessment required",
+                        "Your application at Acme has moved to the assessment stage. "
+                                + "Complete the assessment to keep moving forward!")));
     }
 
     @Test
@@ -246,8 +256,7 @@ class JobApplicationServiceImplTest {
 
         verify(jobApplicationRepository, never()).save(any(JobApplication.class));
         verify(timelineEventRepository, never()).save(any(ApplicationTimelineEvent.class));
-        verify(notificationService, never()).createNotification(
-                any(User.class), any(NotificationType.class), anyString(), anyString());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -298,8 +307,10 @@ class JobApplicationServiceImplTest {
         verify(timelineEventRepository).save(captor.capture());
         assertEquals(TimelineEventType.INTERVIEW_SCHEDULED, captor.getValue().getEventType());
 
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.JOB), eq("Interview scheduled"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Interview scheduled",
+                        "Your interview for Software Engineer at Acme is scheduled for 2026-08-10 at 14:00.")));
     }
 
     @Test
@@ -327,8 +338,10 @@ class JobApplicationServiceImplTest {
         verify(timelineEventRepository).save(captor.capture());
         assertEquals(TimelineEventType.INTERVIEW_CANCELLED, captor.getValue().getEventType());
 
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.JOB), eq("Interview cancelled"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.JOB_APPLICATION_REMINDER_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.JOB,
+                        "Interview cancelled",
+                        "Your interview for Software Engineer at Acme scheduled for 2026-08-10 was cancelled.")));
     }
 
     // ─── Analytics ──────────────────────────────────────────────────────────

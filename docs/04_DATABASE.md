@@ -360,6 +360,52 @@ to improve search performance.
 
 ---
 
-# 8. Conclusion
+# 8. Achievements & Gamification
+
+The gamification module adds three tables seeded and managed by the achievement consumer. `ddl-auto: update` creates them automatically; the badge catalog is seeded idempotently in `data.sql` (`INSERT IGNORE` on the unique `code`).
+
+## achievement_definitions
+
+Static badge catalog shared by every user.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | BIGINT PK | auto-increment |
+| code | VARCHAR(50) | unique, e.g. `ATS_EXPERT` |
+| category | VARCHAR(30) | AchievementCategory enum (RESUME, INTERVIEW, JOB_TRACKER, STUDY_PLANNER, GITHUB, LEETCODE, PLACEMENT, CONSISTENCY, SPECIAL) |
+| title / description | VARCHAR / TEXT | display text |
+| icon | VARCHAR(20) | emoji badge icon |
+| color | VARCHAR(20) | hex accent color |
+| xp_reward | INT | XP granted on unlock |
+| activity_type | VARCHAR(40) | ActivityType enum; NULL for cross-cutting badges (Power User) |
+| target_value | INT | unlock threshold (e.g. 90 for ATS >= 90) |
+| sort_order | INT | catalog display order |
+
+## user_achievements
+
+Per-user unlock records. Unique constraint `uk_user_achievements_user_achievement (user_id, achievement_id)` guarantees a badge can never be unlocked twice, even under concurrent consumers or re-delivered messages.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | BIGINT PK | auto-increment |
+| user_id | BIGINT FK → users.id | |
+| achievement_id | BIGINT FK → achievement_definitions.id | |
+| unlocked_at | DATETIME | when the badge was unlocked |
+
+## xp_history
+
+Append-only XP ledger; the user's total XP is the sum of their entries (single source of truth for the level calculation).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | BIGINT PK | auto-increment |
+| user_id | BIGINT FK → users.id | |
+| amount | INT | always positive; XP is never deducted |
+| reason | VARCHAR(40) | XpReason enum (activity type or ACHIEVEMENT_UNLOCKED) |
+| description | VARCHAR(300) | human-readable award description |
+
+---
+
+# 9. Conclusion
 
 The database design provides a normalized, scalable, and maintainable structure that supports all functional requirements of the DevLaunch application.

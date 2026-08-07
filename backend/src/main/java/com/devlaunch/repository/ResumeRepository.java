@@ -28,4 +28,16 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
      */
     List<Resume> findByUser(User user);
 
+    /**
+     * Counts the resumes owned by the specified user.
+     * <p>
+     * Used by the gamification engine to evaluate count-based achievements
+     * (e.g. Resume Explorer).
+     * </p>
+     *
+     * @param user the user whose resumes to count
+     * @return the number of resumes belonging to the user
+     */
+    long countByUser(User user);
+
 }

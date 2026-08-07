@@ -180,6 +180,27 @@ export const ADMIN = {
 } as const;
 
 /**
+ * Gamification module endpoints (any authenticated user).
+ *
+ * Every endpoint operates exclusively on the authenticated user's own
+ * achievements and XP; the read responses are cached in Redis.
+ *
+ * @see backend/src/main/java/com/devlaunch/controller/GamificationController.java
+ */
+export const ACHIEVEMENTS = {
+  /** GET — The full static achievement catalog. */
+  BASE: '/api/achievements',
+  /** GET — The badges the authenticated user has unlocked, newest first. */
+  USER: '/api/achievements/user',
+  /** GET — Level, XP, badge completion, and recent unlocks. */
+  SUMMARY: '/api/achievements/summary',
+  /** GET — Recent XP ledger entries, newest first. */
+  HISTORY: '/api/achievements/history',
+  /** GET — Per-badge progress (locked and unlocked). */
+  PROGRESS: '/api/achievements/progress',
+} as const;
+
+/**
  * Public feedback submission endpoint (any authenticated user).
  *
  * @see backend/src/main/java/com/devlaunch/controller/FeedbackController.java

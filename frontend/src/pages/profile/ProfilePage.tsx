@@ -16,6 +16,7 @@ import { feedbackService } from '../../services/feedback.service';
 import { ProfileCard } from '../../components/profile/ProfileCard';
 import { ProfileForm } from '../../components/profile/ProfileForm';
 import { ChangePasswordForm, type ChangePasswordFormValues } from '../../components/profile/ChangePasswordForm';
+import { AchievementProfileCard } from '../../components/achievements/AchievementProfileCard';
 import { FeedbackForm } from '../../components/admin/FeedbackForm';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
@@ -121,8 +122,9 @@ export const ProfilePage: React.FC = () => {
     content = (
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Identity */}
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
           <ProfileCard user={user} />
+          <AchievementProfileCard />
         </div>
 
         {/* Editable forms */}

@@ -534,3 +534,33 @@ INSERT IGNORE INTO interview_questions (category, question, difficulty, created_
 ('REACT', 'What is the difference between server-side rendering and static site generation?', 'HARD', NOW(), NOW()),
 ('REACT', 'How do you optimize the initial load performance of a React application?', 'HARD', NOW(), NOW()),
 ('REACT', 'What is the difference between a Higher-Order Component and a custom hook?', 'HARD', NOW(), NOW());
+
+-- DevLaunch gamification achievement catalog seed data.
+--
+-- Populates the achievement_definitions table with the full badge catalog.
+-- The seed is idempotent: INSERT IGNORE skips any row whose unique code
+-- already exists, so the file can safely run on every application startup.
+-- The activity_type column is NULL for the cross-cutting Power User badge
+-- (evaluated on every activity event); all other badges are fed by the
+-- matching ActivityType. xp_reward is the XP granted on unlock.
+
+INSERT IGNORE INTO achievement_definitions
+(code, category, title, description, icon, color, xp_reward, activity_type, target_value, sort_order, created_at, updated_at)
+VALUES
+('RESUME_EXPLORER', 'RESUME', 'Resume Explorer', 'Create your first resume', '📄', '#6366f1', 100, 'RESUME_CREATED', 1, 1, NOW(), NOW()),
+('ATS_EXPERT', 'RESUME', 'ATS Expert', 'Achieve an ATS score of 80 or higher', '🎯', '#f59e0b', 150, 'RESUME_REVIEWED', 80, 2, NOW(), NOW()),
+('ATS_MASTER', 'RESUME', 'ATS Master', 'Achieve an ATS score of 90 or higher', '🏅', '#ef4444', 250, 'RESUME_REVIEWED', 90, 3, NOW(), NOW()),
+('FIRST_APPLICATION', 'JOB_TRACKER', 'First Application', 'Apply to your first company', '📮', '#10b981', 50, 'JOB_APPLICATION_CREATED', 1, 4, NOW(), NOW()),
+('JOB_HUNTER', 'JOB_TRACKER', 'Job Hunter', 'Apply to 10 companies', '💼', '#059669', 200, 'JOB_APPLICATION_CREATED', 10, 5, NOW(), NOW()),
+('INTERVIEW_BEGINNER', 'INTERVIEW', 'Interview Beginner', 'Complete your first mock interview', '🎤', '#8b5cf6', 75, 'INTERVIEW_COMPLETED', 1, 6, NOW(), NOW()),
+('INTERVIEW_EXPERT', 'INTERVIEW', 'Interview Expert', 'Complete 25 mock interviews', '🎙️', '#7c3aed', 300, 'INTERVIEW_COMPLETED', 25, 7, NOW(), NOW()),
+('COMMUNICATION_PRO', 'INTERVIEW', 'Communication Pro', 'Average interview score of 80 or higher', '💬', '#06b6d4', 300, 'INTERVIEW_COMPLETED', 80, 8, NOW(), NOW()),
+('STUDY_STARTER', 'STUDY_PLANNER', 'Study Starter', 'Complete your first study task', '📚', '#f97316', 50, 'STUDY_TASK_COMPLETED', 1, 9, NOW(), NOW()),
+('CONSISTENCY_CHAMPION', 'CONSISTENCY', 'Consistency Champion', 'Maintain a 30-day study streak', '🔥', '#e11d48', 400, 'STUDY_TASK_COMPLETED', 30, 10, NOW(), NOW()),
+('GITHUB_CONNECTED', 'GITHUB', 'GitHub Connected', 'Connect your GitHub account', '🐙', '#0f172a', 75, 'GITHUB_CONNECTED', 1, 11, NOW(), NOW()),
+('GITHUB_CONTRIBUTOR', 'GITHUB', 'GitHub Contributor', 'Have 10 public repositories', '⭐', '#334155', 150, 'GITHUB_CONNECTED', 10, 12, NOW(), NOW()),
+('LEETCODE_BEGINNER', 'LEETCODE', 'LeetCode Beginner', 'Solve 50 problems', '🧩', '#facc15', 100, 'LEETCODE_SYNCED', 50, 13, NOW(), NOW()),
+('LEETCODE_INTERMEDIATE', 'LEETCODE', 'LeetCode Intermediate', 'Solve 150 problems', '⚡', '#eab308', 250, 'LEETCODE_SYNCED', 150, 14, NOW(), NOW()),
+('LEETCODE_MASTER', 'LEETCODE', 'LeetCode Master', 'Solve 300 problems', '👑', '#ca8a04', 500, 'LEETCODE_SYNCED', 300, 15, NOW(), NOW()),
+('PLACEMENT_READY', 'PLACEMENT', 'Placement Ready', 'Reach a placement readiness of 90 or higher', '🚀', '#14b8a6', 500, 'PLACEMENT_UPDATED', 90, 16, NOW(), NOW()),
+('POWER_USER', 'SPECIAL', 'Power User', 'Use every DevLaunch module', '⚡', '#d946ef', 300, NULL, 8, 17, NOW(), NOW());

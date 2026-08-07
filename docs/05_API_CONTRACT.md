@@ -233,7 +233,53 @@ Authorization: Bearer JWT_TOKEN
 
 ---
 
-# 15. HTTP Status Codes
+# 15. Achievements & Gamification APIs
+
+All endpoints require a valid JWT and operate on the authenticated user's own achievements and XP. Responses are cached in Redis (`achievements` cache, 5-minute TTL) and evicted automatically whenever XP or badges change.
+
+## 15.1 Get Achievement Catalog
+
+**GET** `/api/achievements`
+
+Returns the full static badge catalog (shared by every user).
+
+Response: `200 OK` with a list of `AchievementResponse` objects (id, code, category, title, description, icon, color, xpReward, targetValue).
+
+## 15.2 Get User Achievements
+
+**GET** `/api/achievements/user`
+
+Returns the badges the authenticated user has unlocked, newest first.
+
+Response: `200 OK` with a list of `UnlockedAchievementResponse` objects (badge fields + unlockedAt).
+
+## 15.3 Get Achievement Summary
+
+**GET** `/api/achievements/summary`
+
+Returns the gamification summary: current level and level title, total XP, the XP boundaries of the current level (currentLevelXp, nextLevelXp, nextLevel, xpIntoLevel, xpNeededForNext, levelProgressPercent), badge completion (totalAchievements, unlockedCount, lockedCount, completionPercent), and the recent unlock timeline (latestUnlock, recentUnlocks).
+
+Response: `200 OK` with a single `AchievementSummaryResponse` object.
+
+## 15.4 Get XP History
+
+**GET** `/api/achievements/history`
+
+Returns the authenticated user's recent XP ledger entries, newest first (up to 50).
+
+Response: `200 OK` with a list of `XpHistoryResponse` objects (id, amount, reason, description, createdAt).
+
+## 15.5 Get Achievement Progress
+
+**GET** `/api/achievements/progress`
+
+Returns per-badge progress for the authenticated user (locked and unlocked badges, current progress towards the target, unlock timestamp when unlocked).
+
+Response: `200 OK` with a list of `AchievementProgressResponse` objects.
+
+---
+
+# 16. HTTP Status Codes
 
 200 OK
 

@@ -1,8 +1,10 @@
 package com.devlaunch.service.impl;
 
 import com.devlaunch.entity.InterviewSchedule;
-import com.devlaunch.entity.Notification;
 import com.devlaunch.entity.enums.NotificationType;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.InterviewScheduleRepository;
 import com.devlaunch.repository.NotificationRepository;
 import org.slf4j.Logger;
@@ -20,9 +22,10 @@ import java.util.List;
  * Schedules job-application related reminders.
  * <p>
  * Every morning the scheduler scans all non-cancelled interviews scheduled
- * for the next day and creates an "interview tomorrow" notification for the
- * owning user through the existing notification module. Notifications are
- * deduplicated per interview so the same reminder is never sent twice.
+ * for the next day and publishes an "interview tomorrow" reminder event for
+ * the owning user; the messaging consumer persists the notification through
+ * the existing notification module. Reminders are deduplicated per interview
+ * so the same reminder is never published twice.
  * </p>
  *
  * @author DevLaunch
@@ -39,18 +42,22 @@ public class JobApplicationNotificationScheduler {
 
     private final InterviewScheduleRepository interviewScheduleRepository;
     private final NotificationRepository notificationRepository;
+    private final EventPublisher eventPublisher;
 
     /**
      * Constructs the scheduler with the required repositories.
      *
      * @param interviewScheduleRepository repository for interview schedules
      * @param notificationRepository      repository for notification deduplication
+     * @param eventPublisher              publisher for the messaging backbone
      */
     public JobApplicationNotificationScheduler(
             final InterviewScheduleRepository interviewScheduleRepository,
-            final NotificationRepository notificationRepository) {
+            final NotificationRepository notificationRepository,
+            final EventPublisher eventPublisher) {
         this.interviewScheduleRepository = interviewScheduleRepository;
         this.notificationRepository = notificationRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -84,13 +91,9 @@ public class JobApplicationNotificationScheduler {
                 continue;
             }
 
-            notificationRepository.save(Notification.builder()
-                    .user(interview.getApplication().getUser())
-                    .type(NotificationType.JOB)
-                    .title(INTERVIEW_TOMORROW_TITLE)
-                    .message(message)
-                    .isRead(Boolean.FALSE)
-                    .build());
+            eventPublisher.publish(EventTopics.INTERVIEW_REMINDER_KEY,
+                    new NotificationEvent(interview.getApplication().getUser().getId(),
+                            NotificationType.JOB, INTERVIEW_TOMORROW_TITLE, message));
         }
 
         if (!interviewsTomorrow.isEmpty()) {

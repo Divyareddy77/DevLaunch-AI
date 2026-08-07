@@ -16,6 +16,7 @@ export type NotificationTypeEnum =
   | 'MOCK_INTERVIEW'
   | 'RESUME_REVIEW'
   | 'READINESS'
+  | 'ACHIEVEMENT'
   | 'SYSTEM';
 
 /** A single notification delivered to the authenticated user. */
@@ -42,6 +43,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationTypeEnum, string> = {
   MOCK_INTERVIEW: 'Mock Interview',
   RESUME_REVIEW: 'Resume Review',
   READINESS: 'Readiness',
+  ACHIEVEMENT: 'Achievement',
   SYSTEM: 'System',
 };
 
@@ -54,5 +56,6 @@ export const NOTIFICATION_TYPES: NotificationTypeEnum[] = [
   'MOCK_INTERVIEW',
   'RESUME_REVIEW',
   'READINESS',
+  'ACHIEVEMENT',
   'SYSTEM',
 ];

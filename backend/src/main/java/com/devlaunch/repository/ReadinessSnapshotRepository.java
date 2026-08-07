@@ -30,4 +30,16 @@ public interface ReadinessSnapshotRepository extends JpaRepository<ReadinessSnap
      */
     Optional<ReadinessSnapshot> findTopByUserOrderByCreatedAtDesc(User user);
 
+    /**
+     * Counts the readiness snapshots belonging to the specified user.
+     * <p>
+     * Used by the gamification engine to evaluate the Power User
+     * achievement (modules used).
+     * </p>
+     *
+     * @param user the user whose snapshots to count
+     * @return the number of snapshots belonging to the user
+     */
+    long countByUser(User user);
+
 }

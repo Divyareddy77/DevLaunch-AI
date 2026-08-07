@@ -14,7 +14,10 @@ import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.InterviewType;
-import com.devlaunch.entity.enums.NotificationType;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.MockInterviewCompletedEvent;
+import com.devlaunch.messaging.event.ResumeReviewedEvent;
 import com.devlaunch.repository.AchievementRepository;
 import com.devlaunch.repository.CertificationRepository;
 import com.devlaunch.repository.EducationRepository;
@@ -32,7 +35,6 @@ import com.devlaunch.service.ai.ResumeReviewAnalysis;
 import com.devlaunch.service.ai.ResumeReviewProvider;
 import com.devlaunch.service.ai.WhisperTranscription;
 import com.devlaunch.service.interfaces.InterviewQuestionBankService;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,10 +52,12 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,7 +127,7 @@ class AiServiceImplTest {
     private InterviewQuestionBankService questionBankService;
 
     @Mock
-    private NotificationService notificationService;
+    private EventPublisher eventPublisher;
 
     private AiServiceImpl service;
 
@@ -135,7 +139,7 @@ class AiServiceImplTest {
                 interviewSessionRepository, resumeReviewRepository, questionBankService,
                 openAiResumeReviewProvider, sampleResumeReviewProvider,
                 openAiMockInterviewProvider, sampleMockInterviewProvider,
-                whisperTranscriber, notificationService);
+                whisperTranscriber, eventPublisher);
     }
 
     @AfterEach
@@ -213,10 +217,18 @@ class AiServiceImplTest {
 
         service.submitMockInterview(submitRequest());
 
-        // The completed interview always produces a notification
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.MOCK_INTERVIEW),
-                eq("Interview completed"), anyString());
+        // The completed interview always publishes the completion event
+        final ArgumentCaptor<MockInterviewCompletedEvent> eventCaptor =
+                ArgumentCaptor.forClass(MockInterviewCompletedEvent.class);
+        verify(eventPublisher).publish(eq(EventTopics.MOCK_INTERVIEW_COMPLETED_KEY),
+                eventCaptor.capture());
+        final MockInterviewCompletedEvent event = eventCaptor.getValue();
+        assertEquals(user.getId(), event.userId());
+        assertEquals("session-1", event.sessionId());
+        assertEquals(InterviewType.REACT, event.interviewType());
+        assertEquals(70, event.overallScore());
+        assertEquals(68, event.confidenceScore());
+        assertEquals(75, event.communicationScore());
 
         final ArgumentCaptor<InterviewSession> captor =
                 ArgumentCaptor.forClass(InterviewSession.class);
@@ -405,16 +417,20 @@ class AiServiceImplTest {
                 .targetRole("Java Developer")
                 .build());
 
-        final ArgumentCaptor<ResumeReview> captor =
-                ArgumentCaptor.forClass(ResumeReview.class);
-        verify(resumeReviewRepository).save(captor.capture());
-
-        final ResumeReview saved = captor.getValue();
-        assertEquals(78, saved.getResumeScore());
-        assertEquals(65, saved.getAtsScore());
-        assertEquals("Java Developer", saved.getTargetRole());
-        assertEquals(user, saved.getUser());
-        assertEquals(resume, saved.getResume());
+        // The review-completed event is published for the messaging consumer;
+        // the review history row is stored by the consumer asynchronously.
+        final ArgumentCaptor<ResumeReviewedEvent> eventCaptor =
+                ArgumentCaptor.forClass(ResumeReviewedEvent.class);
+        verify(eventPublisher).publish(eq(EventTopics.RESUME_REVIEW_COMPLETED_KEY),
+                eventCaptor.capture());
+        final ResumeReviewedEvent event = eventCaptor.getValue();
+        assertEquals(user.getId(), event.userId());
+        assertEquals(10L, event.resumeId());
+        assertEquals("Java Developer", event.targetRole());
+        assertEquals(78, event.resumeScore());
+        assertEquals(65, event.atsScore());
+        assertNull(event.previousResumeScore());
+        verify(resumeReviewRepository, never()).save(any(ResumeReview.class));
     }
 
     @Test

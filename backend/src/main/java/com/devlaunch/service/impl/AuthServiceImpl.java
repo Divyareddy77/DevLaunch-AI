@@ -18,14 +18,16 @@ import com.devlaunch.exception.InvalidPasswordResetTokenException;
 import com.devlaunch.exception.PasswordResetTokenExpiredException;
 import com.devlaunch.exception.ResourceNotFoundException;
 import com.devlaunch.mapper.AuthMapper;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ForgotPasswordEmailEvent;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.PasswordResetTokenRepository;
 import com.devlaunch.repository.RoleRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.security.CustomUserDetailsService;
 import com.devlaunch.security.JwtService;
 import com.devlaunch.service.interfaces.AuthService;
-import com.devlaunch.service.interfaces.EmailService;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,8 +85,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final EmailService emailService;
-    private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
     private final long jwtExpiration;
     private final long resetTokenExpiryMinutes;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -99,8 +100,7 @@ public class AuthServiceImpl implements AuthService {
      * @param authenticationManager         Spring Security authentication manager
      * @param jwtService                    service for JWT token operations
      * @param passwordResetTokenRepository  repository for one-time reset tokens
-     * @param emailService                  service for delivering reset emails
-     * @param notificationService           service for creating user notifications
+     * @param eventPublisher                publisher for the messaging backbone
      * @param jwtExpiration                 JWT token expiration duration in milliseconds
      * @param resetTokenExpiryMinutes       how long reset tokens remain valid, in minutes
      */
@@ -111,8 +111,7 @@ public class AuthServiceImpl implements AuthService {
                            final AuthenticationManager authenticationManager,
                            final JwtService jwtService,
                            final PasswordResetTokenRepository passwordResetTokenRepository,
-                           final EmailService emailService,
-                           final NotificationService notificationService,
+                           final EventPublisher eventPublisher,
                            @Value("${jwt.expiration}") final long jwtExpiration,
                            @Value("${devlaunch.auth.reset-token-expiry-minutes}") final long resetTokenExpiryMinutes) {
         this.userRepository = userRepository;
@@ -122,8 +121,7 @@ public class AuthServiceImpl implements AuthService {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
-        this.emailService = emailService;
-        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
         this.jwtExpiration = jwtExpiration;
         this.resetTokenExpiryMinutes = resetTokenExpiryMinutes;
     }
@@ -262,9 +260,12 @@ public class AuthServiceImpl implements AuthService {
         // not affected by this deletion.
         passwordResetTokenRepository.deleteUnusedTokens(user);
 
-        notificationService.createNotification(user, NotificationType.SYSTEM,
-                "Password Reset Successful",
-                "Your password has been changed successfully.");
+        // The confirmation notification is published as an event and
+        // persisted asynchronously by the messaging consumer.
+        eventPublisher.publish(EventTopics.PASSWORD_RESET_SUCCESS_KEY,
+                new NotificationEvent(user.getId(), NotificationType.SYSTEM,
+                        "Password Reset Successful",
+                        "Your password has been changed successfully."));
 
         log.info("Password reset completed for user id={}", user.getId());
 
@@ -291,7 +292,8 @@ public class AuthServiceImpl implements AuthService {
 
         // Tokens are high-entropy and never logged; the email is the only
         // place they appear.
-        emailService.sendPasswordResetEmail(user, resetToken.getToken());
+        eventPublisher.publish(EventTopics.FORGOT_PASSWORD_EMAIL_KEY,
+                new ForgotPasswordEmailEvent(user.getId(), resetToken.getToken()));
     }
 
     /**

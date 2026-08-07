@@ -15,10 +15,16 @@ import com.devlaunch.entity.Resume;
 import com.devlaunch.entity.ResumeReview;
 import com.devlaunch.entity.StudyPlanner;
 import com.devlaunch.entity.User;
+import com.devlaunch.cache.CacheNames;
+import com.devlaunch.entity.enums.ActivityType;
 import com.devlaunch.entity.enums.ApplicationStatus;
 import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.StudyStatus;
 import com.devlaunch.exception.ResourceNotFoundException;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.InterviewScheduleRepository;
 import com.devlaunch.repository.InterviewSessionRepository;
 import com.devlaunch.repository.JobApplicationRepository;
@@ -30,7 +36,7 @@ import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.DashboardService;
 import com.devlaunch.service.interfaces.GitHubService;
 import com.devlaunch.service.interfaces.LeetCodeService;
-import com.devlaunch.service.interfaces.NotificationService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -56,9 +62,11 @@ import java.util.Optional;
  * data is shown when an account is not connected. The placement readiness
  * score is calculated on the fly using a weighted formula. A lightweight {@link ReadinessSnapshot} is
  * recorded each time the score changes so the dashboard can show the
- * previous score, the score difference, and the last-updated date, and so
- * meaningful score improvements can raise a notification through the
- * existing notification module.
+ * previous score, the score difference, and the last-updated date. Readiness
+ * milestone notifications (level up, significant improvement) are published
+ * as events on the messaging backbone and persisted by the consumer — the
+ * dashboard never writes notifications directly, and business services
+ * never touch dashboard statistics.
  * </p>
  *
  * @author DevLaunch
@@ -102,7 +110,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ReadinessSnapshotRepository readinessSnapshotRepository;
     private final GitHubService gitHubService;
     private final LeetCodeService leetCodeService;
-    private final NotificationService notificationService;
+    private final EventPublisher eventPublisher;
 
     /**
      * Constructs the dashboard service with the required repositories and
@@ -119,7 +127,7 @@ public class DashboardServiceImpl implements DashboardService {
      * @param gitHubService             service for fetching GitHub profile and
      *                                  repository data
      * @param leetCodeService           service for fetching LeetCode profile data
-     * @param notificationService       service for creating milestone notifications
+     * @param eventPublisher            publisher for the messaging backbone
      */
     public DashboardServiceImpl(final UserRepository userRepository,
                                 final ResumeRepository resumeRepository,
@@ -131,7 +139,7 @@ public class DashboardServiceImpl implements DashboardService {
                                 final ReadinessSnapshotRepository readinessSnapshotRepository,
                                 final GitHubService gitHubService,
                                 final LeetCodeService leetCodeService,
-                                final NotificationService notificationService) {
+                                final EventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.resumeRepository = resumeRepository;
         this.jobApplicationRepository = jobApplicationRepository;
@@ -142,13 +150,14 @@ public class DashboardServiceImpl implements DashboardService {
         this.readinessSnapshotRepository = readinessSnapshotRepository;
         this.gitHubService = gitHubService;
         this.leetCodeService = leetCodeService;
-        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
+    @Cacheable(cacheNames = CacheNames.DASHBOARD)
     @Transactional
     public DashboardResponse getDashboard() {
         final User user = getAuthenticatedUser();
@@ -719,6 +728,11 @@ public class DashboardServiceImpl implements DashboardService {
                     .user(user)
                     .score(currentScore)
                     .build());
+            // The first score also feeds the gamification engine so the
+            // Placement Ready badge can unlock on the very first measurement.
+            eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                    new ActivityEvent(user.getId(), ActivityType.PLACEMENT_UPDATED,
+                            currentScore, LocalDateTime.now()));
             return new ProgressRecord(null, null, null);
         }
 
@@ -735,15 +749,17 @@ public class DashboardServiceImpl implements DashboardService {
         final boolean significant = change >= SIGNIFICANT_IMPROVEMENT_POINTS;
 
         if (levelUp) {
-            notificationService.createNotification(user, NotificationType.READINESS,
-                    "Placement readiness level up",
-                    "Your placement readiness has reached \"" + readinessStatus(currentScore)
-                            + "\" (" + currentScore + "/100).");
+            eventPublisher.publish(EventTopics.READINESS_MILESTONE_KEY,
+                    new NotificationEvent(user.getId(), NotificationType.READINESS,
+                            "Placement readiness level up",
+                            "Your placement readiness has reached \"" + readinessStatus(currentScore)
+                                    + "\" (" + currentScore + "/100)."));
         } else if (significant) {
-            notificationService.createNotification(user, NotificationType.READINESS,
-                    "Placement readiness improved",
-                    "Your placement readiness improved by " + change + " points to "
-                            + currentScore + "/100. Keep it up!");
+            eventPublisher.publish(EventTopics.READINESS_MILESTONE_KEY,
+                    new NotificationEvent(user.getId(), NotificationType.READINESS,
+                            "Placement readiness improved",
+                            "Your placement readiness improved by " + change + " points to "
+                                    + currentScore + "/100. Keep it up!"));
         }
 
         final ReadinessSnapshot snapshot = readinessSnapshotRepository.saveAndFlush(
@@ -751,6 +767,12 @@ public class DashboardServiceImpl implements DashboardService {
                         .user(user)
                         .score(currentScore)
                         .build());
+
+        // Publish the gamification activity; the consumer awards XP and
+        // evaluates the Placement Ready achievement asynchronously.
+        eventPublisher.publish(EventTopics.ACHIEVEMENT_ACTIVITY_KEY,
+                new ActivityEvent(user.getId(), ActivityType.PLACEMENT_UPDATED,
+                        currentScore, LocalDateTime.now()));
 
         return new ProgressRecord(previous.getScore(), change, snapshot.getCreatedAt());
     }

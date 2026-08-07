@@ -31,6 +31,7 @@ import { CreateStudyPlannerPage } from '../pages/study-planner/CreateStudyPlanne
 import { EditStudyPlannerPage } from '../pages/study-planner/EditStudyPlannerPage';
 import { GitHubAnalyticsPage } from '../pages/github/GitHubAnalyticsPage';
 import { LeetCodeTrackerPage } from '../pages/leetcode/LeetCodeTrackerPage';
+import { AchievementsPage } from '../pages/achievements/AchievementsPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ResumeReviewPage } from '../pages/ai/ResumeReviewPage';
 import { MockInterviewPage } from '../pages/ai/MockInterviewPage';
@@ -165,6 +166,12 @@ export const routes: RouteObject[] = [
           {
             path: ROUTES.LEETCODE_TRACKER,
             element: <LeetCodeTrackerPage />,
+          },
+
+          // ---- Achievements ----
+          {
+            path: ROUTES.ACHIEVEMENTS,
+            element: <AchievementsPage />,
           },
 
           // ---- Notifications ----

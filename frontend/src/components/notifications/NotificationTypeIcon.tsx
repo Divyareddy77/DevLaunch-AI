@@ -17,6 +17,7 @@ import {
   Bot,
   FileSearch,
   Target,
+  Trophy,
   Info,
   type LucideIcon,
 } from 'lucide-react';
@@ -65,6 +66,11 @@ const TYPE_META: Record<NotificationTypeEnum, TypeMeta> = {
     icon: Target,
     tile: 'bg-teal-100',
     iconClass: 'text-teal-600',
+  },
+  ACHIEVEMENT: {
+    icon: Trophy,
+    tile: 'bg-amber-100',
+    iconClass: 'text-amber-600',
   },
   SYSTEM: {
     icon: Info,

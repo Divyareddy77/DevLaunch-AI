@@ -29,6 +29,7 @@ export const ROUTES = {
   STUDY_PLANNER_EDIT: (id: number | string) => `/study-planner/${id}/edit`,
   GITHUB_ANALYTICS: '/github',
   LEETCODE_TRACKER: '/leetcode',
+  ACHIEVEMENTS: '/achievements',
   PROFILE: '/profile',
   NOTIFICATIONS: '/notifications',
 

@@ -49,6 +49,12 @@ public enum NotificationType {
     READINESS,
 
     /**
+     * A gamification milestone: an achievement badge unlocked or a
+     * user level reached.
+     */
+    ACHIEVEMENT,
+
+    /**
      * A general system notification.
      */
     SYSTEM

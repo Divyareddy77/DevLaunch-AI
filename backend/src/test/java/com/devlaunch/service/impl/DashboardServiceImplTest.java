@@ -15,6 +15,10 @@ import com.devlaunch.entity.User;
 import com.devlaunch.entity.enums.ApplicationStatus;
 import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.StudyStatus;
+import com.devlaunch.messaging.EventPublisher;
+import com.devlaunch.messaging.EventTopics;
+import com.devlaunch.messaging.event.ActivityEvent;
+import com.devlaunch.messaging.event.NotificationEvent;
 import com.devlaunch.repository.InterviewScheduleRepository;
 import com.devlaunch.repository.InterviewSessionRepository;
 import com.devlaunch.repository.JobApplicationRepository;
@@ -25,7 +29,6 @@ import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.service.interfaces.GitHubService;
 import com.devlaunch.service.interfaces.LeetCodeService;
-import com.devlaunch.service.interfaces.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -100,7 +102,7 @@ class DashboardServiceImplTest {
     private LeetCodeService leetCodeService;
 
     @Mock
-    private NotificationService notificationService;
+    private EventPublisher eventPublisher;
 
     private DashboardServiceImpl service;
 
@@ -111,7 +113,7 @@ class DashboardServiceImplTest {
                 studyPlannerRepository, resumeReviewRepository,
                 interviewSessionRepository, interviewScheduleRepository,
                 readinessSnapshotRepository, gitHubService, leetCodeService,
-                notificationService);
+                eventPublisher);
     }
 
     @AfterEach
@@ -232,13 +234,14 @@ class DashboardServiceImplTest {
         assertEquals("LeetCode", response.getReadinessWeakestArea());
         assertEquals("Connect your LeetCode account", response.getReadinessNextGoal());
 
-        // First measurement: no previous data, but a snapshot is recorded
+        // First measurement: no previous data, but a snapshot is recorded and
+        // the gamification activity feeds the achievement engine.
         assertNull(response.getReadinessPrevious());
         assertNull(response.getReadinessChange());
         assertNull(response.getReadinessUpdatedAt());
         verify(readinessSnapshotRepository).save(any(ReadinessSnapshot.class));
-        verify(notificationService, never()).createNotification(
-                any(User.class), any(NotificationType.class), anyString(), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.ACHIEVEMENT_ACTIVITY_KEY),
+                any(ActivityEvent.class));
     }
 
     @Test
@@ -369,9 +372,10 @@ class DashboardServiceImplTest {
         assertEquals(81, response.getPlacementReadiness());
         assertEquals(saved.getCreatedAt(), response.getReadinessUpdatedAt());
 
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.READINESS),
-                eq("Placement readiness level up"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.READINESS_MILESTONE_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.READINESS,
+                        "Placement readiness level up",
+                        "Your placement readiness has reached \"Placement Ready\" (81/100).")));
         verify(readinessSnapshotRepository).saveAndFlush(any(ReadinessSnapshot.class));
     }
 
@@ -417,9 +421,11 @@ class DashboardServiceImplTest {
         assertEquals(37, response.getReadinessPrevious());
         assertEquals(10, response.getReadinessChange());
 
-        verify(notificationService).createNotification(
-                eq(user), eq(NotificationType.READINESS),
-                eq("Placement readiness improved"), anyString());
+        verify(eventPublisher).publish(eq(EventTopics.READINESS_MILESTONE_KEY),
+                eq(new NotificationEvent(user.getId(), NotificationType.READINESS,
+                        "Placement readiness improved",
+                        "Your placement readiness improved by 10 points to "
+                                + "47/100. Keep it up!")));
         verify(readinessSnapshotRepository).saveAndFlush(any(ReadinessSnapshot.class));
     }
 
@@ -457,8 +463,7 @@ class DashboardServiceImplTest {
         assertEquals(0, response.getReadinessChange());
         assertEquals(previous.getCreatedAt(), response.getReadinessUpdatedAt());
 
-        verify(notificationService, never()).createNotification(
-                any(User.class), any(NotificationType.class), anyString(), anyString());
+        verify(eventPublisher, never()).publish(any(), any());
         verify(readinessSnapshotRepository, never()).save(any(ReadinessSnapshot.class));
         verify(readinessSnapshotRepository, never()).saveAndFlush(any(ReadinessSnapshot.class));
     }
