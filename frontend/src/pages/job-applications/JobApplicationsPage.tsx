@@ -33,10 +33,10 @@ import { MoveStatusModal } from '../../components/job-applications/MoveStatusMod
 import { ScheduleInterviewModal } from '../../components/job-applications/ScheduleInterviewModal';
 import { InterviewNotesModal } from '../../components/job-applications/InterviewNotesModal';
 import { AttachmentsModal } from '../../components/job-applications/AttachmentsModal';
-import { StatusBadge } from '../../components/job-applications/StatusBadge';
 import { Button } from '../../components/ui/Button';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { ROUTES } from '../../constants/routes';
 import { MESSAGES } from '../../constants/messages';
@@ -52,6 +52,19 @@ import type { ScheduleInterviewRequest } from '../../types/job-application';
 type SortField = 'applicationDate' | 'companyName';
 type SortDir = 'asc' | 'desc';
 type ViewMode = 'list' | 'board';
+
+/** Dot + active-ring styles per pipeline status for the summary tiles. */
+const statusTileStyles: Record<
+  ApplicationStatusEnum,
+  { dot: string; active: string }
+> = {
+  WISHLIST: { dot: 'bg-gray-400', active: 'border-gray-400 ring-gray-200' },
+  APPLIED: { dot: 'bg-indigo-500', active: 'border-indigo-400 ring-indigo-200' },
+  ASSESSMENT: { dot: 'bg-amber-500', active: 'border-amber-400 ring-amber-200' },
+  INTERVIEW: { dot: 'bg-blue-500', active: 'border-blue-400 ring-blue-200' },
+  OFFER: { dot: 'bg-emerald-500', active: 'border-emerald-400 ring-emerald-200' },
+  REJECTED: { dot: 'bg-red-500', active: 'border-red-400 ring-red-200' },
+};
 
 export const JobApplicationsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -330,8 +343,18 @@ export const JobApplicationsPage: React.FC = () => {
   // ─── Empty state (no applications at all) ───
   if (applications.length === 0) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+      <div className="animate-page-enter mx-auto max-w-3xl">
+        <PageHeader
+          title="Job Applications"
+          description="Track every application from wishlist to offer in one place."
+          actions={
+            <Button onClick={() => navigate(ROUTES.JOB_APPLICATION_CREATE)}>
+              <Plus className="h-4 w-4" />
+              Add Application
+            </Button>
+          }
+        />
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center transition-colors hover:border-primary-200">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
             <Briefcase className="h-8 w-8 text-indigo-600" />
           </div>
@@ -352,46 +375,51 @@ export const JobApplicationsPage: React.FC = () => {
 
   // ─── Data state ───
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="animate-page-enter mx-auto max-w-7xl">
       {/* Page header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Job Applications</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Track your job search. You have {applications.length}{' '}
-            {applications.length === 1 ? 'application' : 'applications'}.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchApplications}>
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <Button onClick={() => navigate(ROUTES.JOB_APPLICATION_CREATE)}>
-            <Plus className="h-4 w-4" />
-            Add Application
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Job Applications"
+        description={`Track your job search — ${applications.length} ${
+          applications.length === 1 ? 'application' : 'applications'
+        } across your pipeline.`}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={fetchApplications}>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button onClick={() => navigate(ROUTES.JOB_APPLICATION_CREATE)}>
+              <Plus className="h-4 w-4" />
+              Add Application
+            </Button>
+          </>
+        }
+      />
 
-      {/* Status summary bar */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      {/* Pipeline summary tiles */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {(Object.keys(APPLICATION_STATUS_LABELS) as ApplicationStatusEnum[]).map((status) => {
           const count = stats.counts[status] ?? 0;
+          const s = statusTileStyles[status];
+          const isActive = statusFilter === status;
           return (
             <button
               key={status}
-              onClick={() =>
-                setStatusFilter(statusFilter === status ? null : status)
-              }
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                statusFilter === status
-                  ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              onClick={() => setStatusFilter(isActive ? null : status)}
+              className={`group flex items-center justify-between gap-2 rounded-xl border px-3.5 py-3 text-left transition-all duration-200 ${
+                isActive
+                  ? `bg-white ring-2 ${s.active}`
+                  : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:shadow-md'
               }`}
+              aria-pressed={isActive}
             >
-              <StatusBadge status={status} size="sm" />
-              <span>{count}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${s.dot}`} />
+                <span className="truncate text-xs font-semibold text-gray-700">
+                  {APPLICATION_STATUS_LABELS[status]}
+                </span>
+              </span>
+              <span className="flex-shrink-0 text-sm font-bold text-gray-900">{count}</span>
             </button>
           );
         })}

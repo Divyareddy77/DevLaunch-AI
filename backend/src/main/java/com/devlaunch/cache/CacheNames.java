@@ -29,8 +29,15 @@ public final class CacheNames {
     /** Study planner tasks and statistics. */
     public static final String STUDY = "study";
 
-    /** Job application summary and tracker statistics. */
+    /** Job application list and tracker statistics. */
     public static final String JOB = "job";
+
+    /**
+     * Job tracker analytics snapshot. Kept in its own cache so the list read
+     * ({@link #JOB}) and the analytics read never share a Redis key — two
+     * cache entries with different root types must never collide.
+     */
+    public static final String JOB_ANALYTICS = "job-analytics";
 
     /** Notification center counts. */
     public static final String NOTIFICATIONS = "notifications";

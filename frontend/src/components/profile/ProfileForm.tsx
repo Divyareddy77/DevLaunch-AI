@@ -14,10 +14,9 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Save } from 'lucide-react';
+import { Save, UserRound, Phone } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
 import type { UserResponse, UpdateUserRequest } from '../../types/user';
 
 const profileFormSchema = z.object({
@@ -46,6 +45,9 @@ interface ProfileFormProps {
   onSubmit: (data: UpdateUserRequest) => void;
 }
 
+/** Shared label styling for prominent form labels. */
+const LABEL_CLASSES = 'text-sm font-semibold text-gray-800';
+
 export const ProfileForm: React.FC<ProfileFormProps> = ({
   initialData,
   isSubmitting,
@@ -65,29 +67,37 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
   });
 
   return (
-    <Card
-      header={
-        <div>
+    <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-shadow duration-300 hover:shadow-[0_16px_40px_-12px_rgba(16,24,40,0.12)]">
+      {/* Header */}
+      <header className="flex items-center gap-3 border-b border-gray-100 px-6 py-5">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
+          <UserRound className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
           <h3 className="text-base font-semibold text-gray-900">Edit Profile</h3>
           <p className="mt-0.5 text-xs text-gray-500">
             Update your name and contact number. Email and role are managed by the system.
           </p>
         </div>
-      }
-    >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div className="grid gap-4 sm:grid-cols-2">
+      </header>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 p-6" noValidate>
+        <div className="grid gap-5 sm:grid-cols-2">
           <Input
             label="First Name"
+            labelClassName={LABEL_CLASSES}
             placeholder="John"
             autoComplete="given-name"
+            leftIcon={<UserRound className="h-4 w-4" />}
             error={errors.firstName?.message}
             {...register('firstName')}
           />
           <Input
             label="Last Name"
+            labelClassName={LABEL_CLASSES}
             placeholder="Doe"
             autoComplete="family-name"
+            leftIcon={<UserRound className="h-4 w-4" />}
             error={errors.lastName?.message}
             {...register('lastName')}
           />
@@ -95,20 +105,22 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
 
         <Input
           label="Phone"
+          labelClassName={LABEL_CLASSES}
           type="tel"
           placeholder="10-digit mobile number"
           autoComplete="tel"
+          leftIcon={<Phone className="h-4 w-4" />}
           error={errors.phone?.message}
           {...register('phone')}
         />
 
-        <div className="flex justify-end">
-          <Button type="submit" loading={isSubmitting}>
+        <div className="flex justify-end border-t border-gray-100 pt-5">
+          <Button type="submit" loading={isSubmitting} className="hover:-translate-y-0.5 hover:shadow-md">
             <Save className="h-4 w-4" />
             Save Changes
           </Button>
         </div>
       </form>
-    </Card>
+    </section>
   );
 };

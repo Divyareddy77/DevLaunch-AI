@@ -14,6 +14,7 @@ import React from 'react';
 import { Mic, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
 import { Badge } from '../ui/Badge';
+import { EmptyState } from '../shared/EmptyState';
 import { getScoreBadgeVariant } from '../../utils/format';
 
 interface MockInterviewCardProps {
@@ -48,6 +49,7 @@ export const MockInterviewCard: React.FC<MockInterviewCardProps> = ({
     <DashboardCard
       title="Mock Interviews"
       icon={<Mic className="h-5 w-5" />}
+      tone="violet"
       action={
         <button
           onClick={onViewAll}
@@ -59,13 +61,14 @@ export const MockInterviewCard: React.FC<MockInterviewCardProps> = ({
       }
     >
       {!hasInterviews ? (
-        <div className="flex flex-col items-center py-4">
-          <Mic className="mb-2 h-8 w-8 text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">No interviews yet</p>
-          <p className="mt-0.5 text-center text-xs text-gray-400">
-            Complete a mock interview to see your progress
-          </p>
-        </div>
+        <EmptyState
+          icon={Mic}
+          tone="violet"
+          title="No interviews yet"
+          description="Practice with the AI interviewer and watch your scores climb."
+          actionLabel="Start Practicing"
+          onAction={onViewAll}
+        />
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center">

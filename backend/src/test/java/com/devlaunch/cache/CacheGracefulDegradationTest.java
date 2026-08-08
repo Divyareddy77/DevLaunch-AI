@@ -111,6 +111,7 @@ class CacheGracefulDegradationTest {
         public Collection<String> getCacheNames() {
             return Set.of(CacheNames.DASHBOARD, CacheNames.RESUME, CacheNames.GITHUB,
                     CacheNames.LEETCODE, CacheNames.STUDY, CacheNames.JOB,
+                    CacheNames.JOB_ANALYTICS,
                     CacheNames.NOTIFICATIONS,
                     CacheNames.ACHIEVEMENT_SUMMARY, CacheNames.ACHIEVEMENT_LIST,
                     CacheNames.ACHIEVEMENT_PROGRESS, CacheNames.ACHIEVEMENT_UNLOCKS,

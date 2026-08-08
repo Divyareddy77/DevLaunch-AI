@@ -12,6 +12,8 @@ import { type InputHTMLAttributes, forwardRef, type ReactNode } from 'react';
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   /** Label displayed above the input field. */
   label?: string;
+  /** Optional additional CSS classes for the label (e.g. bolder text). */
+  labelClassName?: string;
   /** Error message displayed below the input field. */
   error?: string;
   /** Optional icon displayed inside the input on the left side. */
@@ -29,7 +31,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, leftIcon, rightIcon, hint, fullWidth = true, className = '', id, ...props }, ref) => {
+  (
+    { label, labelClassName = '', error, leftIcon, rightIcon, hint, fullWidth = true, className = '', id, ...props },
+    ref,
+  ) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
@@ -37,7 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="mb-1.5 block text-sm font-medium text-gray-700"
+            className={`mb-1.5 block text-sm font-medium text-gray-700 ${labelClassName}`}
           >
             {label}
           </label>

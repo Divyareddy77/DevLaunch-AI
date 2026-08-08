@@ -33,9 +33,7 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({
   return (
     <div
       className={`group relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition-all duration-300 animate-fade-in-up hover:-translate-y-1 hover:shadow-lg ${
-        unlocked
-          ? 'border-amber-200 hover:border-amber-300'
-          : 'border-gray-200 hover:border-gray-300'
+        unlocked ? 'badge-shine border-amber-200 hover:border-amber-300' : 'border-gray-200 hover:border-gray-300'
       }`}
       style={{ animationDelay: `${delay}ms` }}
     >

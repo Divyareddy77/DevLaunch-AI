@@ -29,6 +29,7 @@ import { RecentUnlockTimeline } from '../../components/achievements/RecentUnlock
 import { UnlockPopup } from '../../components/achievements/UnlockPopup';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { formatDate } from '../../utils/date';
 
 /** Session-storage key holding the badge codes already celebrated. */
@@ -158,22 +159,18 @@ export const AchievementsPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="animate-page-enter mx-auto max-w-7xl">
       {/* Page header */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 sm:text-3xl">
-            <Trophy className="h-7 w-7 text-amber-500" />
-            Achievements
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Earn XP and unlock badges by using every part of DevLaunch.
-          </p>
-        </div>
-        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-          {unlockedCount} of {summary.totalAchievements} badges unlocked
-        </span>
-      </div>
+      <PageHeader
+        title="Achievements"
+        description="Earn XP and unlock badges by using every part of DevLaunch."
+        badge={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+            <Trophy className="h-3.5 w-3.5" />
+            {unlockedCount} of {summary.totalAchievements} badges unlocked
+          </span>
+        }
+      />
 
       {/* Hero level card */}
       <LevelCard summary={summary} />

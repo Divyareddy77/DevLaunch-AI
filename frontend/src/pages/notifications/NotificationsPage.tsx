@@ -20,12 +20,43 @@ import { Card } from '../../components/ui/Card';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { Modal } from '../../components/ui/Modal';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { formatRelativeTime } from '../../utils/date';
 import { NOTIFICATION_TYPE_LABELS } from '../../types/notification';
 import { MESSAGES } from '../../constants/messages';
 import type { AppNotification } from '../../types/notification';
 
 type FilterTab = 'all' | 'unread';
+
+/** Time buckets used to organise the notification list. */
+type NotificationGroup = 'today' | 'yesterday' | 'thisWeek' | 'older';
+
+const GROUP_ORDER: NotificationGroup[] = ['today', 'yesterday', 'thisWeek', 'older'];
+
+const GROUP_LABELS: Record<NotificationGroup, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  thisWeek: 'This Week',
+  older: 'Older',
+};
+
+/** Buckets an ISO timestamp into a time group. */
+function notificationGroup(iso: string): NotificationGroup {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'older';
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const startOfThisWeek = new Date(startOfToday);
+  startOfThisWeek.setDate(startOfThisWeek.getDate() - 7);
+
+  if (date >= startOfToday) return 'today';
+  if (date >= startOfYesterday) return 'yesterday';
+  if (date >= startOfThisWeek) return 'thisWeek';
+  return 'older';
+}
 
 export const NotificationsPage: React.FC = () => {
   const { unreadCount, markAsRead, markAllAsRead, removeNotification } =
@@ -63,6 +94,17 @@ export const NotificationsPage: React.FC = () => {
   const visible = useMemo(
     () => (filter === 'unread' ? notifications.filter((n) => !n.isRead) : notifications),
     [notifications, filter],
+  );
+
+  // Group the visible notifications by recency, preserving newest-first order.
+  const grouped = useMemo(
+    () =>
+      GROUP_ORDER.map((key) => ({
+        key,
+        label: GROUP_LABELS[key],
+        items: visible.filter((n) => notificationGroup(n.createdAt) === key),
+      })).filter((group) => group.items.length > 0),
+    [visible],
   );
 
   const handleOpenNotification = async (notification: AppNotification) => {
@@ -122,8 +164,12 @@ export const NotificationsPage: React.FC = () => {
   // ─── Empty state ───
   if (notifications.length === 0) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+      <div className="animate-page-enter mx-auto max-w-3xl">
+        <PageHeader
+          title="Notifications"
+          description="Stay on top of updates across resumes, interviews, achievements, and more."
+        />
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center transition-colors hover:border-primary-200">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
             <Bell className="h-8 w-8 text-indigo-600" />
           </div>
@@ -140,33 +186,33 @@ export const NotificationsPage: React.FC = () => {
 
   // ─── Data state ───
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="animate-page-enter mx-auto max-w-3xl">
       {/* Page header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Notifications</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {unreadCount > 0
-              ? `You have ${unreadCount} unread ${unreadCount === 1 ? 'notification' : 'notifications'}.`
-              : 'You are all caught up.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchNotifications}>
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => void handleMarkAllRead()}
-            loading={isMarkingAll}
-            disabled={unreadCount === 0}
-          >
-            <CheckCheck className="h-4 w-4" />
-            Mark all read
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Notifications"
+        description={
+          unreadCount > 0
+            ? `You have ${unreadCount} unread ${unreadCount === 1 ? 'notification' : 'notifications'}.`
+            : 'You are all caught up.'
+        }
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={fetchNotifications}>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void handleMarkAllRead()}
+              loading={isMarkingAll}
+              disabled={unreadCount === 0}
+            >
+              <CheckCheck className="h-4 w-4" />
+              Mark all read
+            </Button>
+          </>
+        }
+      />
 
       {/* Filter tabs */}
       <div className="mb-4 flex items-center gap-2">
@@ -199,59 +245,85 @@ export const NotificationsPage: React.FC = () => {
           <p className="text-sm font-medium text-gray-500">No unread notifications.</p>
         </div>
       ) : (
-        <Card padded={false}>
-          <ul className="divide-y divide-gray-100">
-            {visible.map((notification) => (
-              <li
-                key={notification.id}
-                className={`flex items-start gap-3 px-4 py-4 transition-colors sm:px-5 ${
-                  notification.isRead ? '' : 'bg-indigo-50/40'
-                }`}
-              >
-                <NotificationTypeIcon type={notification.type} />
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <section key={group.key} className="animate-fade-in-up">
+              {/* Group header */}
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  {group.label}
+                </h2>
+                <span className="h-px flex-1 bg-gray-100" aria-hidden="true" />
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                  {group.items.length}
+                </span>
+              </div>
 
-                <button
-                  onClick={() => void handleOpenNotification(notification)}
-                  className="min-w-0 flex-1 text-left"
-                  title={notification.isRead ? undefined : 'Mark as read'}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p
-                      className={`text-sm ${
+              <Card padded={false}>
+                <ul className="divide-y divide-gray-100">
+                  {group.items.map((notification) => (
+                    <li
+                      key={notification.id}
+                      className={`relative flex items-start gap-3 px-4 py-4 transition-colors sm:px-5 ${
                         notification.isRead
-                          ? 'font-medium text-gray-700'
-                          : 'font-semibold text-gray-900'
+                          ? 'hover:bg-gray-50'
+                          : 'bg-indigo-50/40 hover:bg-indigo-50/70'
                       }`}
                     >
-                      {notification.title}
-                    </p>
-                    <Badge variant="default" size="sm">
-                      {NOTIFICATION_TYPE_LABELS[notification.type]}
-                    </Badge>
-                    {!notification.isRead && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                    )}
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-gray-500">
-                    {notification.message}
-                  </p>
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    {formatRelativeTime(notification.createdAt)}
-                  </p>
-                </button>
+                      {/* Unread accent rail */}
+                      {!notification.isRead && (
+                        <span
+                          className="absolute inset-y-0 left-0 w-1 bg-primary-500"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <NotificationTypeIcon type={notification.type} />
 
-                <button
-                  onClick={() => setDeleteTarget(notification)}
-                  title="Delete notification"
-                  aria-label={`Delete notification: ${notification.title}`}
-                  className="flex-shrink-0 rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                      <button
+                        onClick={() => void handleOpenNotification(notification)}
+                        className="min-w-0 flex-1 text-left"
+                        title={notification.isRead ? undefined : 'Mark as read'}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p
+                            className={`text-sm ${
+                              notification.isRead
+                                ? 'font-medium text-gray-700'
+                                : 'font-semibold text-gray-900'
+                            }`}
+                          >
+                            {notification.title}
+                          </p>
+                          <Badge variant="default" size="sm">
+                            {NOTIFICATION_TYPE_LABELS[notification.type]}
+                          </Badge>
+                          {!notification.isRead && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+                          )}
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-gray-500">
+                          {notification.message}
+                        </p>
+                        <p className="mt-1.5 text-xs text-gray-400">
+                          {formatRelativeTime(notification.createdAt)}
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() => setDeleteTarget(notification)}
+                        title="Delete notification"
+                        aria-label={`Delete notification: ${notification.title}`}
+                        className="flex-shrink-0 rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          ))}
+        </div>
       )}
 
       {/* Delete confirmation modal */}

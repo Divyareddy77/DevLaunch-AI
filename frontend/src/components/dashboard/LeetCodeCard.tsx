@@ -10,8 +10,9 @@
  */
 
 import React from 'react';
-import { Code2, ExternalLink, Link2, Trophy } from 'lucide-react';
+import { Code2, ExternalLink, Trophy } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
+import { EmptyState } from '../shared/EmptyState';
 
 interface LeetCodeCardProps {
   /** Whether a LeetCode account is linked to the user. */
@@ -58,6 +59,7 @@ export const LeetCodeCard: React.FC<LeetCodeCardProps> = ({
     <DashboardCard
       title="LeetCode Progress"
       icon={<Code2 className="h-5 w-5" />}
+      tone="danger"
       action={
         onViewAll && (
           <button
@@ -75,24 +77,14 @@ export const LeetCodeCard: React.FC<LeetCodeCardProps> = ({
         <p className="text-sm text-red-500">{error}</p>
       ) : !connected ? (
         /* ---- Not connected: prompt to link an account ---- */
-        <div className="flex flex-col items-center py-4 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-            <Code2 className="h-6 w-6 text-gray-400" />
-          </div>
-          <p className="text-sm font-medium text-gray-700">No LeetCode account connected</p>
-          <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-gray-400">
-            Connect your LeetCode account to display your progress.
-          </p>
-          {onConnect && (
-            <button
-              onClick={onConnect}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              Connect
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={Code2}
+          tone="danger"
+          title="No LeetCode account connected"
+          description="Connect your LeetCode account to display your solved problems, acceptance rate, and ranking."
+          actionLabel="Connect Account"
+          onAction={onConnect}
+        />
       ) : (
         /* ---- Connected: live statistics ---- */
         <div>

@@ -61,6 +61,7 @@ class RedisCacheConfigTest {
         final Set<String> expected = Set.of(
                 CacheNames.DASHBOARD, CacheNames.RESUME, CacheNames.GITHUB,
                 CacheNames.LEETCODE, CacheNames.STUDY, CacheNames.JOB,
+                CacheNames.JOB_ANALYTICS,
                 CacheNames.NOTIFICATIONS,
                 CacheNames.ACHIEVEMENT_SUMMARY, CacheNames.ACHIEVEMENT_LIST,
                 CacheNames.ACHIEVEMENT_PROGRESS, CacheNames.ACHIEVEMENT_UNLOCKS,
@@ -77,6 +78,7 @@ class RedisCacheConfigTest {
         assertTtl(CacheNames.LEETCODE, Duration.ofMinutes(30));
         assertTtl(CacheNames.STUDY, Duration.ofMinutes(5));
         assertTtl(CacheNames.JOB, Duration.ofMinutes(5));
+        assertTtl(CacheNames.JOB_ANALYTICS, Duration.ofMinutes(5));
         assertTtl(CacheNames.NOTIFICATIONS, Duration.ofMinutes(2));
         assertTtl(CacheNames.ACHIEVEMENT_SUMMARY, Duration.ofMinutes(5));
         assertTtl(CacheNames.ACHIEVEMENT_LIST, Duration.ofMinutes(5));

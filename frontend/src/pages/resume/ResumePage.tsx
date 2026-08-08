@@ -19,6 +19,7 @@ import { ResumeTemplatePickerModal } from '../../components/resume/ResumeTemplat
 import { Button } from '../../components/ui/Button';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { ROUTES } from '../../constants/routes';
 import { MESSAGES } from '../../constants/messages';
@@ -87,8 +88,18 @@ export const ResumePage: React.FC = () => {
   // ─── Empty state ───
   if (resumes.length === 0) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+      <div className="animate-page-enter mx-auto max-w-3xl">
+        <PageHeader
+          title="My Resumes"
+          description="Build professional resumes that stand out to recruiters and ATS systems."
+          actions={
+            <Button onClick={() => navigate(ROUTES.RESUME_CREATE)}>
+              <Plus className="h-4 w-4" />
+              Create Resume
+            </Button>
+          }
+        />
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center transition-colors hover:border-primary-200">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-100">
             <FileText className="h-8 w-8 text-primary-600" />
           </div>
@@ -109,34 +120,29 @@ export const ResumePage: React.FC = () => {
 
   // ─── Data state ───
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="animate-page-enter mx-auto max-w-6xl">
       {/* Page header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">My Resumes</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage your professional resumes. You have {resumes.length}{' '}
-            {resumes.length === 1 ? 'resume' : 'resumes'}.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchResumes}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <Button onClick={() => navigate(ROUTES.RESUME_CREATE)}>
-            <Plus className="h-4 w-4" />
-            Create Resume
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="My Resumes"
+        description={`Manage your professional resumes. You have ${resumes.length} ${
+          resumes.length === 1 ? 'resume' : 'resumes'
+        } ready to refine and download.`}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={fetchResumes}>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button onClick={() => navigate(ROUTES.RESUME_CREATE)}>
+              <Plus className="h-4 w-4" />
+              Create Resume
+            </Button>
+          </>
+        }
+      />
 
       {/* Resume grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {resumes.map((resume) => (
           <ResumeCard
             key={resume.id}

@@ -2,14 +2,11 @@
  * PlacementReadinessCard — the enhanced Placement Readiness section of
  * the dashboard.
  *
- * Replaces the previous single score ring with a richer career-readiness
- * summary: a colour-coded status badge, strongest/weakest area, next
- * goal, last-updated date, a per-module breakdown, automatically
- * identified strengths and improvement areas, personalized
- * recommendations, and progress tracking against the previously
- * recorded score. All data comes from the backend
- * DashboardServiceImpl and mirrors the fields added to
- * DashboardResponse — no calculations are duplicated here.
+ * The centrepiece of the redesigned dashboard: a large animated progress
+ * ring with a count-up score, colour-coded status badge, previous-vs-current
+ * score tracking, strongest/weakest area, next goal, per-module breakdown,
+ * and personalized recommendations. All data comes from the backend
+ * DashboardServiceImpl — no calculations are duplicated here.
  *
  * @see backend/src/main/java/com/devlaunch/service/impl/DashboardServiceImpl.java
  * @author DevLaunch
@@ -34,9 +31,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { format, isToday, isValid, parseISO } from 'date-fns';
-import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { DashboardResponse, ReadinessModule, ReadinessModuleKey } from '../../types/dashboard';
+import { useCountUp } from '../../hooks/useCountUp';
+import { CARD_TONES, type CardTone } from './cardTones';
+import type {
+  DashboardResponse,
+  ReadinessModule,
+  ReadinessModuleKey,
+} from '../../types/dashboard';
 
 interface LevelStyle {
   /** The level label. */
@@ -45,8 +47,10 @@ interface LevelStyle {
   text: string;
   /** Badge colour classes. */
   badge: string;
-  /** Ring stroke colour. */
+  /** Ring stroke start colour. */
   ring: string;
+  /** Ring stroke gradient end colour. */
+  ringTo: string;
   /** Progress bar colour classes. */
   bar: string;
 }
@@ -64,6 +68,7 @@ const LEVEL_STYLES: Record<string, LevelStyle> = {
     text: 'text-emerald-600',
     badge: 'bg-emerald-100 text-emerald-700',
     ring: '#10b981',
+    ringTo: '#34d399',
     bar: 'bg-emerald-500',
   },
   'Placement Ready': {
@@ -71,6 +76,7 @@ const LEVEL_STYLES: Record<string, LevelStyle> = {
     text: 'text-indigo-600',
     badge: 'bg-indigo-100 text-indigo-700',
     ring: '#6366f1',
+    ringTo: '#a78bfa',
     bar: 'bg-indigo-500',
   },
   Improving: {
@@ -78,6 +84,7 @@ const LEVEL_STYLES: Record<string, LevelStyle> = {
     text: 'text-amber-600',
     badge: 'bg-amber-100 text-amber-700',
     ring: '#f59e0b',
+    ringTo: '#fbbf24',
     bar: 'bg-amber-500',
   },
   'Needs Improvement': {
@@ -85,6 +92,7 @@ const LEVEL_STYLES: Record<string, LevelStyle> = {
     text: 'text-red-600',
     badge: 'bg-red-100 text-red-700',
     ring: '#ef4444',
+    ringTo: '#f87171',
     bar: 'bg-red-500',
   },
 };
@@ -154,29 +162,37 @@ function lastUpdatedLabel(iso: string | null | undefined): string {
 }
 
 /**
- * SVG circular progress ring with the score in the centre, coloured by
- * the readiness level.
+ * SVG circular progress ring with the score in the centre. The arc uses a
+ * two-stop gradient derived from the readiness level and animates smoothly
+ * because it is driven by the count-up score value.
  */
 const ProgressRing: React.FC<{
   score: number;
   level: LevelStyle;
   size?: number;
   strokeWidth?: number;
-}> = ({ score, level, size = 140, strokeWidth = 12 }) => {
+}> = ({ score, level, size = 172, strokeWidth = 14 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
+  const gradientId = `ring-grad-${level.ring.replace('#', '')}`;
 
   return (
     <div className="relative inline-flex items-center justify-center">
       <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={level.ring} />
+            <stop offset="100%" stopColor={level.ringTo} />
+          </linearGradient>
+        </defs>
         {/* Background circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e5e7eb"
+          stroke="#eef0f4"
           strokeWidth={strokeWidth}
         />
         {/* Progress arc */}
@@ -185,16 +201,17 @@ const ProgressRing: React.FC<{
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={level.ring}
+          stroke={`url(#${gradientId})`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className="transition-all duration-700 ease-out"
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className={`text-4xl font-bold ${level.text}`}>{score}</span>
+        <span className={`text-5xl font-bold tracking-tight ${level.text}`}>
+          {Math.round(score)}
+        </span>
         <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
           / 100
         </span>
@@ -229,13 +246,30 @@ const DeltaChip: React.FC<{ change: number }> = ({ change }) => {
   );
 };
 
-/** Small labelled tile used in the summary row. */
-const StatTile: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
-  <div className="rounded-lg border border-gray-100 bg-white/70 px-3.5 py-2.5">
-    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-    <p className="mt-0.5 truncate text-sm font-medium text-gray-800">{value ?? '—'}</p>
-  </div>
-);
+/** Small labelled tile with an icon, used in the summary row. */
+const StatTile: React.FC<{
+  label: string;
+  value: string | null;
+  icon: LucideIcon;
+  tone: CardTone;
+}> = ({ label, value, icon: Icon, tone }) => {
+  const t = CARD_TONES[tone];
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white/80 px-3.5 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="flex items-center gap-2">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.soft}`}>
+          <Icon className={`h-3.5 w-3.5 ${t.text}`} />
+        </span>
+        <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+          {label}
+        </p>
+      </div>
+      <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-gray-800">
+        {value ?? '—'}
+      </p>
+    </div>
+  );
+};
 
 /** One row of the per-module breakdown. */
 const ModuleRow: React.FC<{ module: ReadinessModule }> = ({ module }) => {
@@ -245,7 +279,7 @@ const ModuleRow: React.FC<{ module: ReadinessModule }> = ({ module }) => {
   return (
     <div className="flex items-center gap-3">
       <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 ${iconTone}`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 ring-1 ring-inset ring-gray-100 ${iconTone}`}
       >
         <Icon className="h-4 w-4" />
       </span>
@@ -303,7 +337,7 @@ const InsightCard: React.FC<InsightCardProps> = ({
   const t = INSIGHT_TONES[tone];
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+    <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
       <div className="flex items-center gap-2">
         <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${t.tile} ${t.icon}`}>
           <Icon className="h-4 w-4" />
@@ -326,7 +360,7 @@ const InsightCard: React.FC<InsightCardProps> = ({
               ) : (
                 <BulletIcon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${t.icon}`} />
               )}
-              <span className="text-gray-600">{item}</span>
+              <span className="leading-relaxed text-gray-600">{item}</span>
             </li>
           ))}
         </ul>
@@ -343,42 +377,48 @@ interface PlacementReadinessCardProps {
 export const PlacementReadinessCard: React.FC<PlacementReadinessCardProps> = ({ data }) => {
   const level = levelStyleFor(data.readinessStatus);
   const hasPrevious = data.readinessPrevious !== null && data.readinessChange !== null;
+  const animatedScore = useCountUp(data.placementReadiness, 1100);
 
   return (
-    <Card className="mb-8 overflow-hidden" padded={false}>
+    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
       {/* ---- Summary header ---- */}
-      <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50/70 via-white to-white px-6 py-6 sm:px-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-semibold text-gray-900">Placement Readiness</h2>
+      <div className="border-b border-gray-100 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/60 px-6 py-7 sm:px-8">
+        <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-center">
+          {/* Score ring — the centrepiece */}
+          <div className="flex shrink-0 flex-col items-center lg:pr-8">
+            <ProgressRing score={animatedScore} level={level} />
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <Badge variant={badgeVariantFor(level.label)}>
                 {data.readinessStatus ?? level.label}
               </Badge>
+              {hasPrevious && <DeltaChip change={data.readinessChange ?? 0} />}
             </div>
-            <p className="mt-1 max-w-xl text-sm text-gray-500">
+            <p className="mt-2 text-[11px] font-medium text-gray-400">
+              {data.readinessUpdatedAt ? `Updated ${lastUpdatedLabel(data.readinessUpdatedAt)}` : 'Progress tracked over time'}
+            </p>
+          </div>
+
+          {/* Summary facts */}
+          <div className="min-w-0 flex-1 text-center lg:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 lg:justify-start">
+              <h2 className="text-xl font-semibold tracking-tight text-gray-900">
+                Placement Readiness
+              </h2>
+            </div>
+            <p className="mx-auto mt-1.5 max-w-xl text-sm leading-relaxed text-gray-500 lg:mx-0">
               Your overall score combines resume completeness, job applications, study progress,
               GitHub presence, and LeetCode activity.
             </p>
 
-            {/* Key facts */}
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:max-w-xl">
-              <StatTile label="Strongest Area" value={data.readinessStrongestArea} />
-              <StatTile label="Weakest Area" value={data.readinessWeakestArea} />
-              <StatTile label="Next Goal" value={data.readinessNextGoal} />
-              <StatTile label="Last Updated" value={lastUpdatedLabel(data.readinessUpdatedAt)} />
-            </div>
-
             {/* Progress tracking vs previous score */}
-            <div className="mt-5">
+            <div className="mt-4">
               {hasPrevious ? (
-                <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-100 bg-white px-3.5 py-2.5">
+                <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                   <span className="text-xs font-medium text-gray-500">Previous</span>
                   <span className="text-sm font-bold text-gray-900">{data.readinessPrevious}</span>
                   <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
                   <span className="text-xs font-medium text-gray-500">Now</span>
                   <span className={`text-sm font-bold ${level.text}`}>{data.placementReadiness}</span>
-                  <DeltaChip change={data.readinessChange ?? 0} />
                 </div>
               ) : (
                 <p className="text-xs text-gray-400">
@@ -386,12 +426,28 @@ export const PlacementReadinessCard: React.FC<PlacementReadinessCardProps> = ({ 
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Score ring */}
-          <div className="flex shrink-0 flex-col items-center gap-2 lg:pr-2">
-            <ProgressRing score={data.placementReadiness} level={level} />
-            <p className="text-xs font-medium text-gray-400">{level.label}</p>
+            {/* Strongest / weakest / next goal */}
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatTile
+                label="Strongest Area"
+                value={data.readinessStrongestArea}
+                icon={TrendingUp}
+                tone="success"
+              />
+              <StatTile
+                label="Weakest Area"
+                value={data.readinessWeakestArea}
+                icon={TrendingDown}
+                tone="warning"
+              />
+              <StatTile
+                label="Next Goal"
+                value={data.readinessNextGoal}
+                icon={Target}
+                tone="primary"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -437,6 +493,6 @@ export const PlacementReadinessCard: React.FC<PlacementReadinessCardProps> = ({ 
           emptyText="Great job — you're fully prepared. Keep it up!"
         />
       </div>
-    </Card>
+    </div>
   );
 };

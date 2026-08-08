@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   Puzzle,
   Ruler,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { aiService } from '../../services/ai.service';
 import { resumeService } from '../../services/resume.service';
@@ -30,6 +32,7 @@ import { ROUTES } from '../../constants/routes';
 import { MESSAGES } from '../../constants/messages';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { ResumeReviewForm } from '../../components/ai/ResumeReviewForm';
 import { AtsScoreCard } from '../../components/ai/AtsScoreCard';
 import { CategoryScoresCard } from '../../components/ai/CategoryScoresCard';
@@ -43,6 +46,63 @@ import { SkillsAnalysisCard } from '../../components/ai/SkillsAnalysisCard';
 import { ExperienceAnalysisCard } from '../../components/ai/ExperienceAnalysisCard';
 import type { ResumeResponse } from '../../types/resume';
 import type { ResumeReviewRequest, ResumeReviewResponse } from '../../types/ai';
+
+/** Steps shown (staggered) while the AI builds the report. */
+const REVIEW_STEPS = [
+  'Extracting resume content',
+  'Matching keywords against the target role',
+  'Scoring ATS categories',
+  'Writing actionable recommendations',
+];
+
+/**
+ * Animated loading state for the AI report — staged steps plus a shimmering
+ * skeleton of the report layout so the wait feels productive.
+ */
+const ReviewLoading: React.FC = () => (
+  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    {/* Header strip */}
+    <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-primary-50/70 to-transparent px-5 py-4">
+      <div className="relative flex-shrink-0">
+        <div className="absolute inset-0 rounded-full bg-primary-400/40 blur-md" />
+        <Loader2 className="relative h-5 w-5 animate-spin text-primary-600" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-gray-900">Analyzing your resume</p>
+        <p className="text-xs text-gray-500">Building your professional ATS report…</p>
+      </div>
+    </div>
+
+    <div className="px-5 py-4">
+      {/* Staged steps */}
+      <ul className="space-y-2.5">
+        {REVIEW_STEPS.map((step, index) => (
+          <li
+            key={step}
+            className="flex animate-fade-in-up items-center gap-2.5"
+            style={{ animationDelay: `${120 + index * 200}ms` }}
+          >
+            {index < REVIEW_STEPS.length - 1 ? (
+              <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-primary-400" />
+            ) : (
+              <Sparkles className="h-4 w-4 flex-shrink-0 text-amber-500" />
+            )}
+            <span className="text-sm text-gray-600">{step}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* Skeleton report preview */}
+      <div className="mt-5 space-y-3">
+        <div className="skeleton h-24 rounded-xl" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="skeleton h-20 rounded-xl" />
+          <div className="skeleton h-20 rounded-xl" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 export const ResumeReviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -95,15 +155,12 @@ export const ResumeReviewPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="animate-page-enter space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">ATS Resume Analysis</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Select a resume to receive a professional ATS report — overall score,
-          category breakdown, keyword analysis, and actionable improvements.
-        </p>
-      </div>
+      <PageHeader
+        title="ATS Resume Analysis"
+        description="Select a resume to receive a professional ATS report — overall score, category breakdown, keyword analysis, and actionable improvements."
+      />
 
       {loadError ? (
         <ErrorMessage message={loadError} onRetry={fetchResumes} />
@@ -134,7 +191,9 @@ export const ResumeReviewPage: React.FC = () => {
               />
             )}
 
-            {!review && !reviewError && (
+            {reviewing && <ReviewLoading />}
+
+            {!review && !reviewError && !reviewing && (
               <EmptyReviewState
                 icon={Sparkles}
                 iconClassName="bg-primary-100 text-primary-600"
@@ -144,9 +203,9 @@ export const ResumeReviewPage: React.FC = () => {
             )}
 
             {review && (
-              <div className="space-y-4">
+              <div className="animate-scale-in space-y-4">
                 {/* Reviewed resume title */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
                   <FileText className="h-4 w-4 shrink-0 text-gray-400" />
                   <p className="text-sm text-gray-500">
                     Review for{' '}
@@ -154,6 +213,10 @@ export const ResumeReviewPage: React.FC = () => {
                       {review.resumeTitle}
                     </span>
                   </p>
+                  <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Report ready
+                  </span>
                 </div>
 
                 {/* Overall ATS score */}

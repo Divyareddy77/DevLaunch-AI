@@ -9,7 +9,7 @@
 
 import React from 'react';
 
-type UserAvatarSize = 'sm' | 'md' | 'lg';
+type UserAvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface UserAvatarProps {
   /** The user's first name. */
@@ -26,6 +26,7 @@ const sizeStyles: Record<UserAvatarSize, string> = {
   sm: 'h-9 w-9 text-xs',
   md: 'h-14 w-14 text-lg',
   lg: 'h-24 w-24 text-2xl',
+  xl: 'h-28 w-28 text-3xl',
 };
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({

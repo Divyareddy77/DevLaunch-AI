@@ -56,7 +56,7 @@ export const DashboardLayout: React.FC = () => {
         {/* Sidebar header */}
         <div className="flex h-16 items-center justify-between border-b border-gray-100 px-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-indigo-600 shadow-sm shadow-primary-200">
               <span className="text-sm font-bold text-white">D</span>
             </div>
             <span className="text-sm font-bold text-gray-900">{APP.NAME}</span>
@@ -105,7 +105,7 @@ export const DashboardLayout: React.FC = () => {
       {/* Main content area */}
       <div className="flex flex-1 flex-col">
         {/* Top bar */}
-        <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] backdrop-blur lg:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -138,7 +138,7 @@ export const DashboardLayout: React.FC = () => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 xl:p-8">
           <Outlet />
         </main>
       </div>

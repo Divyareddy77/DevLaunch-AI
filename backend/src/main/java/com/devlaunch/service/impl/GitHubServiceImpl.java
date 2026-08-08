@@ -55,7 +55,7 @@ public class GitHubServiceImpl implements GitHubService {
      * {@inheritDoc}
      */
     @Override
-    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "'profile:' + #username.trim()")
     public GitHubProfileResponse getGitHubProfile(final String username) {
         GitHubApiUserResponse apiResponse;
 
@@ -108,7 +108,7 @@ public class GitHubServiceImpl implements GitHubService {
      * {@inheritDoc}
      */
     @Override
-    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "'repos:' + #username.trim()")
     public List<RepositoryResponse> getRepositories(final String username) {
         GitHubApiRepoResponse[] apiResponses;
 
@@ -152,7 +152,7 @@ public class GitHubServiceImpl implements GitHubService {
      * {@inheritDoc}
      */
     @Override
-    @Cacheable(cacheNames = CacheNames.GITHUB, key = "#username")
+    @Cacheable(cacheNames = CacheNames.GITHUB, key = "'languages:' + #username.trim()")
     public List<LanguageStatisticsResponse> getLanguageStatistics(final String username) {
         GitHubApiRepoResponse[] apiResponses;
 

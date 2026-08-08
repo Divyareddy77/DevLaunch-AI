@@ -49,10 +49,13 @@ import java.util.Map;
  * user's ID. GitHub and LeetCode profiles are public data fetched for an
  * arbitrary profile username, so those caches are keyed by the profile
  * username instead — this both prevents cross-account cache poisoning and
- * lets the same public profile be shared between requesters. The
- * {@code resume} cache is reserved for per-user review reads and is evicted
- * whenever a review completes; the latest-review data itself is currently
- * surfaced through the {@code dashboard} cache.
+ * lets the same public profile be shared between requesters. The GitHub
+ * cache further prefixes keys by resource type ({@code profile:}/
+ * {@code repos:}/{@code languages:}) so the three different response types
+ * never share a Redis key. The {@code resume} cache is reserved for
+ * per-user review reads and is evicted whenever a review completes; the
+ * latest-review data itself is currently surfaced through the
+ * {@code dashboard} cache.
  * </p>
  * <p>
  * Serialization constraint: cached values must have a non-final root type so
@@ -122,6 +125,7 @@ public class RedisCacheConfig implements CachingConfigurer {
         perCache.put(CacheNames.LEETCODE, defaults.entryTtl(LEETCODE_TTL));
         perCache.put(CacheNames.STUDY, defaults.entryTtl(STUDY_TTL));
         perCache.put(CacheNames.JOB, defaults.entryTtl(JOB_TTL));
+        perCache.put(CacheNames.JOB_ANALYTICS, defaults.entryTtl(JOB_TTL));
         perCache.put(CacheNames.NOTIFICATIONS, defaults
                 .entryTtl(NOTIFICATIONS_TTL)
                 .serializeValuesWith(SerializationPair.fromSerializer(
