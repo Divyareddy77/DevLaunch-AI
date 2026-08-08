@@ -68,12 +68,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         key={dateStr}
         onClick={() => onDateSelect(isSelected ? null : dateStr)}
         className={`
-          relative flex h-9 w-full items-center justify-center rounded-lg text-sm transition-colors
+          relative flex h-9 w-full items-center justify-center rounded-lg text-sm transition-all
           ${
             isSelected
-              ? 'bg-primary-600 text-white font-semibold shadow-sm'
+              ? 'animate-ring-pulse bg-primary-600 font-semibold text-white shadow-sm'
               : isToday
-                ? 'bg-primary-50 text-primary-700 font-semibold'
+                ? 'bg-primary-50 font-semibold text-primary-700 ring-1 ring-inset ring-primary-200 hover:bg-primary-100'
                 : 'text-gray-700 hover:bg-gray-100'
           }
         `}
@@ -92,40 +92,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      {/* Month navigation */}
-      <div className="mb-4 flex items-center justify-between">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      {/* Gradient month header */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-3">
         <button
           onClick={onPrevMonth}
-          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          className="rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h3 className="text-sm font-semibold text-gray-900">{monthName}</h3>
+        <h3 className="text-sm font-semibold text-white">{monthName}</h3>
         <button
           onClick={onNextMonth}
-          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          className="rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
           aria-label="Next month"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
-      {/* Day name headers */}
-      <div className="mb-1 grid grid-cols-7 gap-0">
-        {DAY_NAMES.map((name) => (
-          <div
-            key={name}
-            className="py-1 text-center text-xs font-medium uppercase tracking-wider text-gray-400"
-          >
-            {name}
-          </div>
-        ))}
-      </div>
+      <div className="p-3.5">
+        {/* Day name headers */}
+        <div className="mb-1 grid grid-cols-7 gap-0">
+          {DAY_NAMES.map((name) => (
+            <div
+              key={name}
+              className="py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400"
+            >
+              {name}
+            </div>
+          ))}
+        </div>
 
-      {/* Day grid */}
-      <div className="grid grid-cols-7 gap-0.5">{cells}</div>
+        {/* Day grid */}
+        <div className="grid grid-cols-7 gap-0.5">{cells}</div>
+      </div>
     </div>
   );
 };

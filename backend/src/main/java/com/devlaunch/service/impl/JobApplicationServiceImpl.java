@@ -145,7 +145,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public JobApplicationResponse createJobApplication(final CreateJobApplicationRequest request) {
         final User user = getAuthenticatedUser();
@@ -227,7 +227,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public JobApplicationResponse updateJobApplication(final Long id,
                                                        final UpdateJobApplicationRequest request) {
@@ -297,7 +297,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public JobApplicationResponse updateApplicationStatus(final Long id,
                                                           final ApplicationStatus status) {
@@ -329,7 +329,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public void deleteJobApplication(final Long id) {
         final JobApplication jobApplication = getJobApplicationOwnedByAuthenticatedUser(id);
@@ -383,7 +383,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public InterviewScheduleResponse scheduleInterview(final Long id,
                                                        final ScheduleInterviewRequest request) {
@@ -428,7 +428,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public InterviewScheduleResponse updateInterview(final Long interviewId,
                                                      final UpdateInterviewScheduleRequest request) {
@@ -470,7 +470,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            @CacheEvict(cacheNames = CacheNames.JOB)
+            @CacheEvict(cacheNames = {CacheNames.JOB, CacheNames.JOB_ANALYTICS})
     })
     public InterviewScheduleResponse cancelInterview(final Long interviewId) {
         final InterviewSchedule interview = getInterviewOwnedByAuthenticatedUser(interviewId);
@@ -609,7 +609,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
      * {@inheritDoc}
      */
     @Override
-    @Cacheable(cacheNames = CacheNames.JOB)
+    @Cacheable(cacheNames = CacheNames.JOB_ANALYTICS)
     @Transactional(readOnly = true)
     public ApplicationAnalyticsResponse getAnalytics() {
         final User user = getAuthenticatedUser();

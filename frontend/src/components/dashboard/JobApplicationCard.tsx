@@ -12,6 +12,7 @@
 import React from 'react';
 import { Briefcase, ExternalLink, Send, CalendarCheck, Award, FileSearch } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
+import { EmptyState } from '../shared/EmptyState';
 import { formatDate, formatTime } from '../../utils/date';
 import { interviewCountdownLabel } from '../../utils/jobApplication';
 import type { RecentApplication, UpcomingInterview } from '../../types/dashboard';
@@ -70,6 +71,7 @@ export const JobApplicationCard: React.FC<JobApplicationCardProps> = ({
     <DashboardCard
       title="Job Applications"
       icon={<Briefcase className="h-5 w-5" />}
+      tone="orange"
       action={
         onViewAll && (
           <button
@@ -124,7 +126,15 @@ export const JobApplicationCard: React.FC<JobApplicationCardProps> = ({
               Recent Applications
             </p>
             {recentApplications.length === 0 ? (
-              <p className="text-xs text-gray-400">No applications yet.</p>
+              <EmptyState
+                icon={Briefcase}
+                tone="orange"
+                compact
+                title="No applications yet"
+                description="Add your first application to start tracking your search."
+                actionLabel="Add Application"
+                onAction={onViewAll}
+              />
             ) : (
               <ul className="space-y-1.5">
                 {recentApplications.map((app) => (

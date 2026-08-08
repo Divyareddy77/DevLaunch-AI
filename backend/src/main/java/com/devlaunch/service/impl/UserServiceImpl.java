@@ -95,9 +95,12 @@ public class UserServiceImpl implements UserService {
     @Transactional
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheNames.DASHBOARD),
-            // GitHub/LeetCode profiles are cached by profile username, so the
-            // freshly connected account's entry is dropped for immediate freshness.
-            @CacheEvict(cacheNames = CacheNames.GITHUB, key = "#username.trim()")
+            // GitHub data is cached per resource type (profile / repos /
+            // languages) under the profile username, so each of the freshly
+            // connected account's entries is dropped for immediate freshness.
+            @CacheEvict(cacheNames = CacheNames.GITHUB, key = "'profile:' + #username.trim()"),
+            @CacheEvict(cacheNames = CacheNames.GITHUB, key = "'repos:' + #username.trim()"),
+            @CacheEvict(cacheNames = CacheNames.GITHUB, key = "'languages:' + #username.trim()")
     })
     public UserResponse connectGitHub(final String username) {
         final User user = getAuthenticatedUser();

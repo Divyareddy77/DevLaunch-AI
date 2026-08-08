@@ -10,8 +10,9 @@
  */
 
 import React from 'react';
-import { Github, ExternalLink, Star, GitFork, Users, Code2, Link2 } from 'lucide-react';
+import { Github, ExternalLink, Star, GitFork, Users, Code2 } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
+import { EmptyState } from '../shared/EmptyState';
 
 interface GitHubCardProps {
   /** Whether a GitHub account is linked to the user. */
@@ -52,6 +53,7 @@ export const GitHubCard: React.FC<GitHubCardProps> = ({
     <DashboardCard
       title="GitHub Overview"
       icon={<Github className="h-5 w-5" />}
+      tone="info"
       action={
         onViewAll && (
           <button
@@ -69,24 +71,14 @@ export const GitHubCard: React.FC<GitHubCardProps> = ({
         <p className="text-sm text-red-500">{error}</p>
       ) : !connected ? (
         /* ---- Not connected: prompt to link an account ---- */
-        <div className="flex flex-col items-center py-4 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-            <Github className="h-6 w-6 text-gray-400" />
-          </div>
-          <p className="text-sm font-medium text-gray-700">No GitHub account connected</p>
-          <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-gray-400">
-            Connect your GitHub account to display your live statistics.
-          </p>
-          {onConnect && (
-            <button
-              onClick={onConnect}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              Connect
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={Github}
+          tone="info"
+          title="No GitHub account connected"
+          description="Connect your GitHub account to display your live repositories, languages, and followers."
+          actionLabel="Connect Account"
+          onAction={onConnect}
+        />
       ) : (
         /* ---- Connected: live statistics ---- */
         <div>

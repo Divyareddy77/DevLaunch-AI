@@ -14,11 +14,66 @@
 
 @layer components {
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900;
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900;
   }
 
   .sidebar-link-active {
-    @apply flex items-center gap-3 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 transition-colors;
+    @apply relative flex items-center gap-3 rounded-lg bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-700 transition-colors;
+  }
+
+  /* Left accent rail on the active sidebar link */
+  .sidebar-link-active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-600;
+  }
+
+  /* Card hover lift — subtle rise + deeper shadow for interactive cards */
+  .card-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px -12px rgba(79, 70, 229, 0.22), 0 2px 8px -2px rgba(16, 24, 40, 0.08);
+  }
+
+  /* Skeleton shimmer block used during loading states */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-gray-100;
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Dot grid used as a decorative cover pattern */
+  .bg-dot-pattern {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.22) 1px, transparent 0);
+    background-size: 18px 18px;
+  }
+
+  /* Shine sweep across unlocked badges */
+  .badge-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -75%;
+    height: 100%;
+    width: 50%;
+    transform: skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: badge-shine 3.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .badge-shine {
+    position: relative;
+    overflow: hidden;
   }
 }
 
@@ -134,6 +189,76 @@
   transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Subtle dot grid used as a decorative pattern in the dashboard hero. */
+.hero-grid-pattern {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+/* Slow drift for the decorative hero gradient blobs. */
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(12px, -16px) scale(1.06);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 9s ease-in-out infinite;
+}
+
+/* ---- Micro-interactions ---- */
+
+/* Material-style ripple for primary buttons. */
+@keyframes ripple {
+  to {
+    transform: translate(-50%, -50%) scale(16);
+    opacity: 0;
+  }
+}
+
+.ripple {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.28);
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Fade + slide used for the announcement carousel slide transitions. */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.35s ease-out both;
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Floating trophy for the level ring. */
 @keyframes float-soft {
   0%,
@@ -147,4 +272,91 @@
 
 .animate-float-soft {
   animation: float-soft 3.5s ease-in-out infinite;
+}
+
+/* ---- Page-level transitions ---- */
+
+/* Fade + slight rise when a module page mounts. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 0.35s ease-out both;
+}
+
+/* Skeleton shimmer sweep. */
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Shine sweep for unlocked badges. */
+@keyframes badge-shine {
+  0% {
+    left: -75%;
+  }
+  55% {
+    left: 125%;
+  }
+  100% {
+    left: 125%;
+  }
+}
+
+/* Soft scale-in used by the AI report reveal. */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Pulsing ring for the selected calendar day. */
+@keyframes ring-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+.animate-ring-pulse {
+  animation: ring-pulse 2s ease-out infinite;
+}
+
+/* Staggered rise used for grouped list reveals. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.35s ease-out both;
 }

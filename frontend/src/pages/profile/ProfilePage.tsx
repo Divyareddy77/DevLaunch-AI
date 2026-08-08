@@ -14,12 +14,14 @@ import toast from 'react-hot-toast';
 import { userService } from '../../services/user.service';
 import { feedbackService } from '../../services/feedback.service';
 import { ProfileCard } from '../../components/profile/ProfileCard';
+import { ConnectedAccountsCard } from '../../components/profile/ConnectedAccountsCard';
 import { ProfileForm } from '../../components/profile/ProfileForm';
 import { ChangePasswordForm, type ChangePasswordFormValues } from '../../components/profile/ChangePasswordForm';
 import { AchievementProfileCard } from '../../components/achievements/AchievementProfileCard';
 import { FeedbackForm } from '../../components/admin/FeedbackForm';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { getErrorMessage } from '../../utils/error';
 import { MESSAGES } from '../../constants/messages';
 import type { UserResponse, UpdateUserRequest } from '../../types/user';
@@ -121,41 +123,52 @@ export const ProfilePage: React.FC = () => {
   } else {
     content = (
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Identity */}
+        {/* Identity, connected accounts, gamification */}
         <div className="space-y-6 lg:col-span-2">
-          <ProfileCard user={user} />
-          <AchievementProfileCard />
+          <div className="animate-fade-in-up">
+            <ProfileCard user={user} />
+          </div>
+          <div className="animate-fade-in-up" style={{ animationDelay: '70ms' }}>
+            <ConnectedAccountsCard user={user} />
+          </div>
+          <div className="animate-fade-in-up" style={{ animationDelay: '140ms' }}>
+            <AchievementProfileCard />
+          </div>
         </div>
 
         {/* Editable forms */}
         <div className="space-y-6 lg:col-span-3">
-          <ProfileForm
-            initialData={user}
-            isSubmitting={isSavingProfile}
-            onSubmit={handleUpdateProfile}
-          />
-          <ChangePasswordForm
-            isSubmitting={isChangingPassword}
-            onSubmit={handleChangePassword}
-          />
-          <FeedbackForm
-            isSubmitting={isSendingFeedback}
-            onSubmit={handleSendFeedback}
-          />
+          <div className="animate-fade-in-up" style={{ animationDelay: '90ms' }}>
+            <ProfileForm
+              initialData={user}
+              isSubmitting={isSavingProfile}
+              onSubmit={handleUpdateProfile}
+            />
+          </div>
+          <div className="animate-fade-in-up" style={{ animationDelay: '160ms' }}>
+            <ChangePasswordForm
+              isSubmitting={isChangingPassword}
+              onSubmit={handleChangePassword}
+            />
+          </div>
+          <div className="animate-fade-in-up" style={{ animationDelay: '230ms' }}>
+            <FeedbackForm
+              isSubmitting={isSendingFeedback}
+              onSubmit={handleSendFeedback}
+            />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="animate-page-enter mx-auto max-w-7xl">
       {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Profile</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage your account details and password.
-        </p>
-      </div>
+      <PageHeader
+        title="Profile"
+        description="Manage your account details, connected accounts, and password."
+      />
 
       {/* Content */}
       {content}

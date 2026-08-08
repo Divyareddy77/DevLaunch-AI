@@ -11,6 +11,7 @@
 import React from 'react';
 import { CalendarCheck, ExternalLink, TrendingUp } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
+import { EmptyState } from '../shared/EmptyState';
 
 interface StudyPlannerCardProps {
   /** Total number of study tasks created. */
@@ -41,6 +42,7 @@ export const StudyPlannerCard: React.FC<StudyPlannerCardProps> = ({
     <DashboardCard
       title="Study Progress"
       icon={<CalendarCheck className="h-5 w-5" />}
+      tone="warning"
       action={
         onViewAll && (
           <button
@@ -56,6 +58,16 @@ export const StudyPlannerCard: React.FC<StudyPlannerCardProps> = ({
     >
       {error ? (
         <p className="text-sm text-red-500">{error}</p>
+      ) : !totalTasks ? (
+        /* ---- No tasks yet: guide the user forward ---- */
+        <EmptyState
+          icon={CalendarCheck}
+          tone="warning"
+          title="No study tasks yet"
+          description="Plan your first session and build a consistent study routine."
+          actionLabel="Create Tasks"
+          onAction={onViewAll}
+        />
       ) : (
         <div>
           <div className="mb-3 flex items-center justify-center gap-3">

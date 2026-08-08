@@ -61,6 +61,16 @@ const columnDot: Record<ApplicationStatusEnum, string> = {
   REJECTED: 'bg-red-400',
 };
 
+/** Tinted count badge per status. */
+const columnBadge: Record<ApplicationStatusEnum, string> = {
+  WISHLIST: 'bg-gray-100 text-gray-500 ring-gray-200',
+  APPLIED: 'bg-indigo-50 text-indigo-600 ring-indigo-100',
+  ASSESSMENT: 'bg-amber-50 text-amber-600 ring-amber-100',
+  INTERVIEW: 'bg-blue-50 text-blue-600 ring-blue-100',
+  OFFER: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
+  REJECTED: 'bg-red-50 text-red-500 ring-red-100',
+};
+
 export const JobBoardView: React.FC<JobBoardViewProps> = ({
   applications,
   onStatusChange,
@@ -120,7 +130,7 @@ export const JobBoardView: React.FC<JobBoardViewProps> = ({
                 e.preventDefault();
                 handleDrop(status);
               }}
-              className={`flex w-72 flex-shrink-0 flex-col rounded-xl border border-t-2 bg-gray-50/80 transition-colors ${
+              className={`flex w-72 flex-shrink-0 flex-col rounded-xl border border-t-2 bg-gray-50/80 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-colors ${
                 columnAccent[status]
               } ${isOver ? 'border-indigo-300 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-gray-200'}`}
             >
@@ -132,7 +142,9 @@ export const JobBoardView: React.FC<JobBoardViewProps> = ({
                     {APPLICATION_STATUS_LABELS[status]}
                   </h3>
                 </div>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500 ring-1 ring-gray-200">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${columnBadge[status]}`}
+                >
                   {apps.length}
                 </span>
               </div>

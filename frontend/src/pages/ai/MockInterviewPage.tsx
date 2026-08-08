@@ -22,6 +22,7 @@ import { historyItemToReport } from '../../utils/interview';
 import { MESSAGES } from '../../constants/messages';
 import { INTERVIEW_DRAFT_PREFIX, TIMED_QUESTION_SECONDS } from '../../constants/interview';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { MockInterviewLanding } from '../../components/ai/MockInterviewLanding';
 import {
   MockInterviewSetup,
@@ -366,15 +367,12 @@ export const MockInterviewPage: React.FC = () => {
   const effectiveConfig = config ?? DEFAULT_INTERVIEW_CONFIG;
 
   return (
-    <div className="space-y-6">
+    <div className="animate-page-enter space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">AI Mock Interview</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Practise with AI-generated questions, answer by voice or text, and
-          get a professional report with personalised coaching.
-        </p>
-      </div>
+      <PageHeader
+        title="AI Mock Interview"
+        description="Practise with AI-generated questions, answer by voice or text, and get a professional report with personalised coaching."
+      />
 
       {/* Stage: landing */}
       {stage === 'landing' && (

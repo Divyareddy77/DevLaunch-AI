@@ -7,12 +7,14 @@ import com.devlaunch.entity.enums.NotificationType;
 import com.devlaunch.entity.enums.RoleType;
 import com.devlaunch.entity.enums.StudyPriority;
 import com.devlaunch.entity.enums.StudyStatus;
+import com.devlaunch.repository.JobApplicationRepository;
 import com.devlaunch.repository.NotificationRepository;
 import com.devlaunch.repository.RoleRepository;
 import com.devlaunch.repository.StudyPlannerRepository;
 import com.devlaunch.repository.UserRepository;
 import com.devlaunch.security.CustomUserDetails;
 import com.devlaunch.service.interfaces.DashboardService;
+import com.devlaunch.service.interfaces.JobApplicationService;
 import com.devlaunch.service.interfaces.NotificationService;
 import com.devlaunch.service.interfaces.StudyPlannerService;
 import org.junit.jupiter.api.AfterEach;
@@ -65,6 +67,7 @@ class CacheBehaviorIntegrationTest {
             return new ConcurrentMapCacheManager(
                     CacheNames.DASHBOARD, CacheNames.RESUME, CacheNames.GITHUB,
                     CacheNames.LEETCODE, CacheNames.STUDY, CacheNames.JOB,
+                    CacheNames.JOB_ANALYTICS,
                     CacheNames.NOTIFICATIONS,
                     CacheNames.ACHIEVEMENT_SUMMARY, CacheNames.ACHIEVEMENT_LIST,
                     CacheNames.ACHIEVEMENT_PROGRESS, CacheNames.ACHIEVEMENT_UNLOCKS,
@@ -84,6 +87,9 @@ class CacheBehaviorIntegrationTest {
     private StudyPlannerService studyPlannerService;
 
     @Autowired
+    private JobApplicationService jobApplicationService;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -94,6 +100,9 @@ class CacheBehaviorIntegrationTest {
 
     @MockitoSpyBean
     private StudyPlannerRepository studyPlannerRepository;
+
+    @MockitoSpyBean
+    private JobApplicationRepository jobApplicationRepository;
 
     private User testUser;
 
@@ -120,6 +129,7 @@ class CacheBehaviorIntegrationTest {
         SecurityContextHolder.clearContext();
         notificationRepository.deleteAll();
         studyPlannerRepository.deleteAll();
+        jobApplicationRepository.deleteAll();
     }
 
     @Test
@@ -137,6 +147,25 @@ class CacheBehaviorIntegrationTest {
 
         assertEquals(0, notificationService.getUnreadCount());
         verify(notificationRepository, times(2)).countByUserAndIsReadFalse(any(User.class));
+    }
+
+    @Test
+    @DisplayName("job application list and analytics are cached separately and never clash on type")
+    void jobListAndAnalyticsCoexistInSeparateCaches() {
+        // Regression: both reads used to share one JOB cache key with
+        // different root types, so whichever ran second threw a
+        // ClassCastException on the cached value. Each read now lives in its
+        // own cache (job vs job-analytics) under the same user-scoped key.
+        jobApplicationService.getAllJobApplications();
+        jobApplicationService.getAnalytics();
+
+        // Second reads are served from the caches — no ClassCastException.
+        jobApplicationService.getAllJobApplications();
+        jobApplicationService.getAnalytics();
+
+        // One query per method: the list read and the analytics read each hit
+        // the database exactly once, then both serve from their own caches.
+        verify(jobApplicationRepository, times(2)).findByUser(any(User.class));
     }
 
     @Test

@@ -9,7 +9,7 @@
  * @author DevLaunch
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Code2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { leetCodeService } from '../../services/leetcode.service';
@@ -23,6 +23,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { LoadingScreen } from '../../components/ui/LoadingScreen';
 import { ErrorMessage } from '../../components/shared/ErrorMessage';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { getErrorMessage } from '../../utils/error';
 import { MESSAGES } from '../../constants/messages';
 import type { LeetCodeProfileResponse } from '../../types/leetcode';
@@ -84,6 +85,23 @@ export const LeetCodeTrackerPage: React.FC = () => {
       });
   }, []);
 
+  // When a linked account exists, load its data immediately so the page is
+  // informative the moment it opens instead of showing an empty state.
+  // The ref guards against retrying a failed auto-load in a loop.
+  const autoLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      connectedUsername &&
+      !searchedUsername &&
+      !profile &&
+      !isLoading &&
+      autoLoadedRef.current !== connectedUsername
+    ) {
+      autoLoadedRef.current = connectedUsername;
+      void fetchLeetCode(connectedUsername);
+    }
+  }, [connectedUsername, searchedUsername, profile, isLoading, fetchLeetCode]);
+
   /** Saves the entered username as the linked LeetCode account. */
   const handleConnect = useCallback(async (username: string) => {
     setIsConnecting(true);
@@ -114,6 +132,7 @@ export const LeetCodeTrackerPage: React.FC = () => {
     try {
       await userService.disconnectLeetCode();
       setConnectedUsername(null);
+      autoLoadedRef.current = null;
       // Clear cached data so the page returns to its initial state.
       setSearchedUsername(null);
       setProfile(null);
@@ -166,6 +185,8 @@ export const LeetCodeTrackerPage: React.FC = () => {
             easySolved={profile.easySolved}
             mediumSolved={profile.mediumSolved}
             hardSolved={profile.hardSolved}
+            acceptanceRate={profile.acceptanceRate}
+            ranking={profile.ranking}
           />
         </div>
 
@@ -183,15 +204,12 @@ export const LeetCodeTrackerPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="animate-page-enter mx-auto max-w-6xl">
       {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">LeetCode Tracker</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Enter any LeetCode username to view their solved problems, difficulty breakdown, and
-          global ranking.
-        </p>
-      </div>
+      <PageHeader
+        title="LeetCode Tracker"
+        description="Track any LeetCode profile — solved problems, difficulty breakdown, acceptance rate, and global ranking."
+      />
 
       {/* Linked account section */}
       <LinkedAccountCard

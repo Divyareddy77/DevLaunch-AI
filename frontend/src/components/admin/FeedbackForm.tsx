@@ -15,7 +15,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Send, MessageSquare } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
 
 const feedbackSchema = z.object({
   message: z
@@ -55,21 +54,25 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({ isSubmitting, onSubm
   };
 
   return (
-    <Card
-      header={
-        <div>
+    <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-shadow duration-300 hover:shadow-[0_16px_40px_-12px_rgba(16,24,40,0.12)]">
+      {/* Header */}
+      <header className="flex items-center gap-3 border-b border-gray-100 px-6 py-5">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+          <MessageSquare className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
           <h3 className="text-base font-semibold text-gray-900">Send Feedback</h3>
           <p className="mt-0.5 text-xs text-gray-500">
             Share your suggestions or report an issue — the DevLaunch team reads every message.
           </p>
         </div>
-      }
-    >
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4" noValidate>
+      </header>
+
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5 p-6" noValidate>
         <div>
           <label
             htmlFor="feedback-message"
-            className="mb-1.5 block text-sm font-medium text-gray-700"
+            className="mb-1.5 block text-sm font-semibold text-gray-800"
           >
             Message
           </label>
@@ -101,13 +104,13 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({ isSubmitting, onSubm
           )}
         </div>
 
-        <div className="flex justify-end">
-          <Button type="submit" loading={isSubmitting}>
+        <div className="flex justify-end border-t border-gray-100 pt-5">
+          <Button type="submit" loading={isSubmitting} className="hover:-translate-y-0.5 hover:shadow-md">
             <Send className="h-4 w-4" />
             Send Feedback
           </Button>
         </div>
       </form>
-    </Card>
+    </section>
   );
 };
