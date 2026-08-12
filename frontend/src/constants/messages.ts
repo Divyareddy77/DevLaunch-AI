@@ -15,6 +15,9 @@ export const MESSAGES = {
   LOGIN_ERROR: 'Invalid email or password. Please try again.',
   REGISTER_SUCCESS: 'Your account has been created successfully.',
   REGISTER_ERROR: 'Registration failed. Please check your details and try again.',
+  REGISTER_EMAIL_EXISTS:
+    'Email already exists. An account is already registered with this email address. Please use a different email or sign in.',
+  REGISTER_ERROR_GENERIC: 'Unable to create your account. Please try again later.',
   LOGOUT_CONFIRM: 'Are you sure you want to log out?',
   SESSION_EXPIRED: 'Your session has expired. Please log in again.',
 

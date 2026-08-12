@@ -14,6 +14,7 @@ import type { UserResponse } from '../types/user';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { STORAGE_KEYS } from '../constants/storage';
+import { getRegisterErrorMessage } from '../utils/error';
 import axios from 'axios';
 
 /** Result of a login attempt. */
@@ -157,8 +158,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Registration does not issue a JWT — the user must log in afterward
       return { success: true };
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      const message = getRegisterErrorMessage(err);
       setError(message);
       return { success: false, error: message };
     } finally {
