@@ -1,33 +1,103 @@
-version: "3.9"
-
 services:
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: devlaunch-rabbitmq
     restart: unless-stopped
-
     ports:
       - "5672:5672"
       - "15672:15672"
-
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - devlaunch-network
 
   redis:
     image: redis:7-alpine
     container_name: devlaunch-redis
     restart: unless-stopped
-
     ports:
       - "6379:6379"
-
     volumes:
       - redis_data:/data
+    networks:
+      - devlaunch-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: devlaunch-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: devlaunch
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - devlaunch-network
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: devlaunch-backend:latest
+    container_name: devlaunch-backend
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://devlaunch-mysql:3306/devlaunch?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+
+      REDIS_HOST: devlaunch-redis
+      REDIS_PORT: 6379
+
+      RABBITMQ_HOST: devlaunch-rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+
+      FRONTEND_BASE_URL: "http://localhost:5173"
+
+      UPLOAD_DIR: /app/uploads
+
+    volumes:
+      - backend_uploads:/app/uploads
+
+    networks:
+      - devlaunch-network
+
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: devlaunch-frontend:latest
+    container_name: devlaunch-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - devlaunch-network
+    depends_on:
+      - backend
+
 
 volumes:
   rabbitmq_data:
   redis_data:
+  mysql_data:
+  backend_uploads:
+
+
+networks:
+  devlaunch-network:
+    external: true
