@@ -61,16 +61,11 @@ public class NotificationController {
     /**
      * Marks a single notification as read, verifying it belongs to the
      * currently authenticated user.
-     * <p>
-     * Accepts both {@code PUT} and {@code PATCH} so the endpoint satisfies
-     * the documented contract while remaining RESTful.
-     * </p>
      *
      * @param id the notification ID to mark as read
-     * @return a {@link ResponseEntity} containing the updated notification
+     * @return a ResponseEntity containing the updated notification
      *         with HTTP status 200 (OK)
      */
-    @PutMapping("/{id}/read")
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResponse> markAsRead(@PathVariable final Long id) {
         return ResponseEntity.ok(notificationService.markAsRead(id));

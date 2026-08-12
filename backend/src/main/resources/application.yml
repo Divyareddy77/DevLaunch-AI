@@ -86,7 +86,7 @@ devlaunch:
   # Password reset flow configuration.
   auth:
     # Base URL of the frontend used to build the reset link in emails.
-    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
     # How long a password reset token stays valid, in minutes.
     reset-token-expiry-minutes: ${RESET_TOKEN_EXPIRY_MINUTES:30}
 

@@ -36,7 +36,7 @@ export const notificationService = {
    * PUT /api/notifications/{id}/read
    */
   markAsRead: (id: number) =>
-    apiClient.put<AppNotification>(NOTIFICATIONS.MARK_READ(id)).then((res) => res.data),
+    apiClient.patch<AppNotification>(NOTIFICATIONS.MARK_READ(id)).then((res) => res.data),
 
   /**
    * Marks every notification of the authenticated user as read.
