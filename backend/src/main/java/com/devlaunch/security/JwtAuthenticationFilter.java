@@ -69,12 +69,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull final HttpServletRequest request,
             @NonNull final HttpServletResponse response,
             @NonNull final FilterChain filterChain) throws ServletException, IOException {
-        System.out.println("JwtAuthenticationFilter executed");
-
 
         final String authHeader = request.getHeader(AUTHORIZATION_HEADER);
-        System.out.println("Authorization Header: " + authHeader);
-
         // Skip authentication if the header is missing or does not use Bearer scheme
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             filterChain.doFilter(request, response);
@@ -87,17 +83,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Extract the username (email) from the token
         final String username = jwtService.extractUsername(jwt);
 
-        System.out.println("Token: " + jwt);
-        System.out.println("Username: " + username);
-
         // Proceed only if we have a username and no authentication is already set
-        System.out.println("Validating token...");
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             final UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
-            System.out.println(userDetails.getAuthorities());
 
             if (jwtService.isTokenValid(jwt, userDetails)) {
-                System.out.println("Token is valid");
                 final UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails,
@@ -110,7 +100,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-                System.out.println("Authentication stored in SecurityContext");
             }
         }
 

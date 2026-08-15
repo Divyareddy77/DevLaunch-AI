@@ -43,3 +43,21 @@ Thumbs.db
 backend/logs/
 *.log
 *.gz
+
+# =========================
+# Frontend build output
+# =========================
+dist/
+.vite/
+*.tsbuildinfo
+
+# =========================
+# Java compiled classes
+# =========================
+*.class
+
+# =========================
+# Environment Variable Files
+# =========================
+.env.*
+!.env.example

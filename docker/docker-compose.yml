@@ -54,10 +54,10 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
 
-      REDIS_HOST: devlaunch-redis
+      REDIS_HOST: redis
       REDIS_PORT: 6379
 
-      RABBITMQ_HOST: devlaunch-rabbitmq
+      RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USERNAME: guest
       RABBITMQ_PASSWORD: guest
