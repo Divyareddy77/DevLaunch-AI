@@ -5,7 +5,7 @@
  * latest badge with a glow animation, recently unlocked badges, and
  * overall achievement completion — with a button to the achievements page.
  *
- * @author DevLaunch
+ * @author DevLaunch-AI
  */
 
 import React from 'react';
