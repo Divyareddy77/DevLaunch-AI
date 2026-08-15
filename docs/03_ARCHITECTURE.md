@@ -110,20 +110,22 @@ Supporting layers:
 ```
 backend/
 └── src/main/java/com/devlaunch
-    ├── config
-    ├── controller
+    ├── cache                    # Redis cache manager, TTLs, graceful error handler
+    ├── config                   # Security, OpenAPI, data initializer
+    ├── controller               # REST controllers (one per module)
     ├── dto
     │   ├── request
     │   └── response
-    ├── entity
-    ├── exception
-    ├── mapper
+    ├── entity                   # JPA entities + enums
+    ├── exception                # GlobalExceptionHandler + custom exceptions
+    ├── mapper                   # MapStruct mappers
+    ├── messaging                # RabbitMQ publisher, consumers, events, config
     ├── repository
-    ├── security
+    ├── security                 # JWT service/filter, custom user details
     ├── service
     │   ├── interfaces
-    │   └── impl
-    ├── validation
+    │   ├── impl
+    │   └── ai                   # AI providers (OpenAI + deterministic fallbacks)
     ├── util
     └── DevLaunchApplication.java
 ```
@@ -133,21 +135,21 @@ backend/
 # 6. Frontend Structure
 
 ```
-frontend/
-src/
-│
-├── api
-├── assets
-├── components
-├── context
-├── hooks
-├── layouts
-├── pages
-├── routes
-├── services
-├── types
-├── utils
-└── App.tsx
+frontend/src/
+├── api          # Axios client + endpoint constants
+├── components   # feature components + ui design system
+├── constants    # routes, storage keys, interview config, resume templates
+├── context      # Auth, Theme, Notification providers
+├── hooks        # useAuth, useWebcam, useMediaRecorder, useResumeDownload, …
+├── layouts      # AuthLayout, DashboardLayout
+├── pages        # auth, dashboard, module and admin pages
+├── routes       # central route table with guards
+├── services     # 15 typed API service modules
+├── types        # TypeScript interfaces
+├── utils        # validation, date, format, jwt, interview, …
+├── index.css    # Tailwind + design-system keyframes
+├── main.tsx     # React root
+└── App.tsx      # providers + router + Toaster
 ```
 
 ---
@@ -252,9 +254,10 @@ MySQL
 Security components:
 
 - Spring Security
-- JWT Authentication
+- JWT Authentication (stateless, HMAC-SHA256)
 - BCrypt Password Encryption
-- Role-Based Authorization
+- Role-Based Authorization (STUDENT / ADMIN)
+- CORS Configuration (allowed origin from `FRONTEND_BASE_URL`, OPTIONS preflight permitted)
 - Request Validation
 - Global Exception Handling
 
@@ -304,27 +307,29 @@ Sensitive information such as passwords and tokens will never be logged.
 
 # 13. Deployment Architecture
 
+The application is deployed to **Microsoft Azure Container Apps** using the **existing** resources below (the CD pipeline updates only the container image on these apps — nothing is created or reconfigured by deployment):
+
 ```
-React Frontend
-       │
-       ▼
-Azure App Service
-
-Spring Boot Backend
-       │
-       ▼
-Azure App Service
-
-MySQL Database
-       │
-       ▼
-Azure Database for MySQL
-
-RabbitMQ
-       │
-       ▼
-Azure / Docker Container
+GitHub → GitHub Actions
+   ├── CI  (validation: backend tests, frontend build, docker builds)
+   └── CD  (Azure OIDC login → push images to devlaunchacr → update Container Apps)
+              │
+              ▼
+Azure Container Registry (devlaunchacr)
+              │
+              ▼
+Azure Container Apps
+   ├── devlaunch-frontend  (nginx :80)
+   └── devlaunch-backend   (Spring Boot :8080)
+              │
+              ▼
+MySQL 8 · Redis · RabbitMQ  (managed by the existing environment configuration)
 ```
+
+- **Resources (existing, source of truth):** resource group `devlaunch-rg`, registry `devlaunchacr`, Container Apps `devlaunch-backend` + `devlaunch-frontend`, Container Apps environment `devlaunch-env`.
+- **Images:** immutable tags `devlaunchacr.azurecr.io/devlaunch-{backend,frontend}:${{ github.sha }}` (no `latest`).
+- **Authentication:** GitHub Actions Azure OIDC federated credentials (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`).
+- For local development the same components run via `docker/docker-compose.yml` (MySQL, Redis, RabbitMQ, backend, frontend).
 
 ---
 

@@ -5,407 +5,311 @@
 | Field | Details |
 |--------|----------|
 | Project Name | DevLaunch |
-| Database | MySQL |
+| Database | MySQL 8+ (H2 `MODE=MySQL` for tests) |
 | ORM | Spring Data JPA (Hibernate) |
-| Database Version | MySQL 8+ |
+| Schema handling | `ddl-auto: update` (auto-created; **no migration tool**) |
+| Auditing | `BaseEntity` (`id`, `created_at`, `updated_at`) via `@EnableJpaAuditing` |
+
+> **Note:** this document describes the database schema **as actually implemented**. Where the original design (`docs/02`, earlier drafts) differs, the implemented schema is authoritative — see [§9 Deviations from the original plan](#9-deviations-from-the-original-plan).
 
 ---
 
 # 1. Introduction
 
-This document defines the logical database design for the DevLaunch application.
+The database stores user information, resumes (with their sections), job applications (with timeline/interviews/notes/attachments), study planner tasks, interview sessions, resume reviews, password reset tokens, notifications, announcements, feedback, and the gamification tables (achievements, XP ledger, readiness snapshots).
 
-The database stores user information, resumes, job applications, study plans, interview history, GitHub analytics, LeetCode statistics, notifications, and administrative data.
-
-The design follows normalization principles to minimize redundancy while maintaining performance and scalability.
+The schema is created by Hibernate from the JPA entities in `backend/src/main/java/com/devlaunch/entity/`, and `data.sql` seeds the interview question bank (500 questions across 5 categories) and 17 achievement definitions on every startup (idempotent `INSERT IGNORE`).
 
 ---
 
-# 2. Database Overview
+# 2. Entity Overview
 
-The application consists of the following primary entities:
+The application consists of the following entities (actual):
 
-- Users
-- Roles
-- Resumes
-- Education
-- Skills
-- Projects
-- Experience
-- Certifications
-- Job Applications
-- Study Plans
-- Study Tasks
-- Interview History
-- GitHub Profiles
-- LeetCode Statistics
-- Notifications
-- Feedback
-- Announcements
+- Users, Roles
+- Resumes, ResumeTemplates
+- Education, Skills, Projects, Experience, Certifications, Achievements (resume sections)
+- JobApplications, ApplicationTimelineEvents, InterviewSchedules, InterviewNotes, ApplicationAttachments
+- StudyPlanners (flat task model — no plan/task split)
+- InterviewQuestions, InterviewSessions (+ question snapshots)
+- ResumeReviews
+- PasswordResetTokens
+- Notifications, Announcements, Feedback
+- AchievementDefinitions, UserAchievements, XpHistory
+- ReadinessSnapshots
 
 ---
 
 # 3. Entity Relationship Overview
 
 ```
-User
- │
- ├── Resume
- │      ├── Education
- │      ├── Skill
- │      ├── Project
- │      ├── Experience
- │      └── Certification
- │
- ├── JobApplication
- │
- ├── StudyPlan
- │      └── StudyTask
- │
- ├── InterviewHistory
- │
- ├── GitHubProfile
- │
- ├── LeetCodeStats
- │
- ├── Notification
- │
- └── Feedback
+Role ─┬─ User
+User ─┬─ Resume ─┬─ Education / Skill / Project / Experience / Certification / Achievement
+      │          └─ ResumeTemplate (optional, Many-to-One)
+      ├─ JobApplication ─┬─ ApplicationTimelineEvent
+      │                  ├─ InterviewSchedule
+      │                  ├─ InterviewNote
+      │                  └─ ApplicationAttachment
+      ├─ StudyPlanner
+      ├─ InterviewSession ── InterviewSessionQuestion (element collection)
+      ├─ ResumeReview
+      ├─ Notification
+      ├─ Feedback
+      ├─ Announcement (created_by)
+      ├─ PasswordResetToken
+      ├─ UserAchievement ── AchievementDefinition
+      ├─ XpHistory
+      └─ ReadinessSnapshot
 ```
 
 ---
 
-# 4. Tables
+# 4. Tables (as implemented)
 
-## Users
+## Roles — `roles`
 
-Stores user information.
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | auto-increment |
+| role_name | VARCHAR (enum) | `STUDENT`, `ADMIN` — unique, seeded by `DataInitializer` |
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| first_name | VARCHAR |
-| last_name | VARCHAR |
-| email | VARCHAR |
-| password | VARCHAR |
-| phone | VARCHAR |
-| role_id | BIGINT |
-| created_at | TIMESTAMP |
-| updated_at | TIMESTAMP |
+## Users — `users`
 
----
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | auto-increment |
+| first_name / last_name | VARCHAR | |
+| email | VARCHAR | **unique** |
+| password | VARCHAR | BCrypt hash (`@JsonIgnore` on the API DTO) |
+| phone | VARCHAR | |
+| github_username | VARCHAR | linked GitHub username (live-fetched, not persisted separately) |
+| leetcode_username | VARCHAR | linked LeetCode username |
+| is_active | BOOLEAN | admin can deactivate; inactive users cannot log in |
+| role_id | BIGINT FK → roles.id | |
+| created_at / updated_at | TIMESTAMP | BaseEntity auditing |
 
-## Roles
+## Resume Templates — `resume_templates`
 
-Stores user roles.
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| name | VARCHAR | unique — Professional, Modern, Minimal, Creative (seeded) |
+| description | VARCHAR | |
+| preview_image_url | VARCHAR | |
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| role_name | VARCHAR |
+## Resumes — `resumes`
 
-Roles:
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| user_id | BIGINT FK → users.id | |
+| template_id | BIGINT FK → resume_templates.id | optional |
+| headline | VARCHAR | |
+| summary | TEXT | |
+| linkedin_url / github_url / portfolio_url | VARCHAR | |
 
-- STUDENT
-- ADMIN
+## Resume Sections
 
----
+Each section is a child of a resume (`resume_id` FK, cascade).
 
-## Resume
+### Education — `educations`
 
-Stores resume details.
+institution_name, degree, field_of_study, grade, start_date, end_date, currently_studying, description
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| title | VARCHAR |
-| summary | TEXT |
-| template_name | VARCHAR |
+### Experience — `experiences`
 
----
+company_name, job_title, employment_type, location, start_date, end_date, currently_working, description
 
-## Education
+### Projects — `projects`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| resume_id | BIGINT |
-| institution | VARCHAR |
-| degree | VARCHAR |
-| specialization | VARCHAR |
-| cgpa | DECIMAL |
-| start_year | YEAR |
-| end_year | YEAR |
+project_name, description, technologies, github_url, live_url, start_date, end_date, currently_working
 
----
+### Skills — `skills`
 
-## Skills
+skill_name, proficiency
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| resume_id | BIGINT |
-| skill_name | VARCHAR |
-| skill_level | VARCHAR |
+### Certifications — `certifications`
 
----
+certification_name, issuing_organization, issue_date, expiry_date, credential_id, credential_url
 
-## Projects
+### Achievements — `achievements`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| resume_id | BIGINT |
-| project_name | VARCHAR |
-| description | TEXT |
-| technologies | VARCHAR |
-| github_url | VARCHAR |
+title, description, date_achieved
 
----
+*(Resume "achievements" — distinct from the gamification badges in `achievement_definitions`.)*
 
-## Experience
+## Job Applications — `job_applications`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| resume_id | BIGINT |
-| company | VARCHAR |
-| role | VARCHAR |
-| duration | VARCHAR |
-| description | TEXT |
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| user_id | BIGINT FK → users.id | |
+| resume_id | BIGINT FK → resumes.id | optional link |
+| company_name, job_role, company_location | VARCHAR | |
+| job_type, salary, application_date | | |
+| status | VARCHAR (enum) | `WISHLIST` → `APPLIED` → `ASSESSMENT` → `INTERVIEW` → `OFFER` → `REJECTED` |
+| work_mode | VARCHAR (enum) | `REMOTE`, `HYBRID`, `ONSITE` |
+| priority | VARCHAR (enum) | `LOW`, `MEDIUM`, `HIGH`, `URGENT` |
+| job_url, company_website | VARCHAR | |
+| recruiter_name, recruiter_email, referral | | |
+| technology, notes | VARCHAR / TEXT | |
 
----
+### Application Timeline Events — `application_timeline_events`
 
-## Certifications
+event_type (enum: ADDED, APPLIED, ASSESSMENT, INTERVIEW, OFFER, REJECTED, STATUS_UPDATED, INTERVIEW_SCHEDULED, INTERVIEW_CANCELLED, ATTACHMENT_ADDED), title, notes, occurred_at — child of job_application
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| resume_id | BIGINT |
-| certificate_name | VARCHAR |
-| organization | VARCHAR |
-| issue_date | DATE |
+### Interview Schedules — `interview_schedules`
 
----
+title, round, scheduled_date, scheduled_time, meeting_link, interviewer, notes, cancelled — child of job_application
 
-## Job Applications
+### Interview Notes — `interview_notes`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| company_name | VARCHAR |
-| job_role | VARCHAR |
-| location | VARCHAR |
-| application_date | DATE |
-| status | VARCHAR |
-| notes | TEXT |
+content — child of job_application
 
-Application Status:
+### Application Attachments — `application_attachments`
 
-- Wishlist
-- Applied
-- Assessment
-- Interview
-- Offer
-- Rejected
+file_name, stored_file_name (opaque), content_type, file_size, category (enum: RESUME, COVER_LETTER, OFFER_LETTER, ASSESSMENT, INTERVIEW_FEEDBACK, OTHER) — child of job_application; file bytes stored on disk under `UPLOAD_DIR` (`./uploads`)
 
----
+## Study Planners — `study_planners`
 
-## Study Plans
+**Flat task model** — each row is one scheduled task (there is no plan/task hierarchy):
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| title | VARCHAR |
-| start_date | DATE |
-| end_date | DATE |
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| user_id | BIGINT FK → users.id | |
+| title, description | VARCHAR / TEXT | |
+| study_date | DATE | |
+| start_time / end_time | TIME | optional |
+| priority | VARCHAR (enum) | `LOW`, `MEDIUM`, `HIGH` |
+| status | VARCHAR (enum) | `PENDING`, `IN_PROGRESS`, `COMPLETED` |
 
----
+## Interview Questions — `interview_questions`
 
-## Study Tasks
+category (enum: HR, JAVA, SPRING_BOOT, SQL, REACT), question, difficulty (enum: EASY, MEDIUM, HARD), active — **unique (category, question)**; 500 rows seeded by `data.sql`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| study_plan_id | BIGINT |
-| task_name | VARCHAR |
-| status | VARCHAR |
+## Interview Sessions — `interview_sessions`
 
-Task Status:
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| user_id | BIGINT FK → users.id | |
+| session_id | VARCHAR | client-generated UUID |
+| interview_type | VARCHAR (enum) | HR / JAVA / SPRING_BOOT / SQL / REACT |
+| overall_score | INT | |
+| question_count | INT | |
+| difficulty | VARCHAR (enum) | EASY / MEDIUM / HARD / MIXED |
+| timed | BOOLEAN | |
+| duration_seconds / word_count | INT | |
+| technical / communication / confidence / problem_solving / clarity / vocabulary / professionalism | INT | per-dimension scores |
+| completed_at | TIMESTAMP | |
 
-- Pending
-- Completed
+### Interview Session Questions — element collection (`interview_session_questions`)
 
----
+question_id, question, answer, score, feedback, improved_answer (+ question_order) — snapshotted per session; sessions also store `strengths` / `improvements` / `suggestions` string element collections
 
-## Interview History
+## Resume Reviews — `resume_reviews`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| category | VARCHAR |
-| score | INT |
-| interview_date | DATE |
+user_id FK, resume_id FK, target_role, resume_score, ats_score — only the score summary is persisted (the full AI report is returned but not stored)
 
----
+## Password Reset Tokens — `password_reset_tokens`
 
-## GitHub Profile
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| user_id | BIGINT FK → users.id | |
+| token | VARCHAR | unique, 64-hex (256-bit) |
+| expires_at | TIMESTAMP | default 30 min |
+| used | BOOLEAN | single-use |
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| username | VARCHAR |
-| repositories | INT |
-| followers | INT |
-| following | INT |
+## Notifications — `notifications`
 
----
+user_id FK, title, message, type (enum: ANNOUNCEMENT, RESUME, JOB, STUDY, MOCK_INTERVIEW, RESUME_REVIEW, READINESS, ACHIEVEMENT, SYSTEM), is_read
 
-## LeetCode Statistics
+## Announcements — `announcements`
 
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| username | VARCHAR |
-| easy_solved | INT |
-| medium_solved | INT |
-| hard_solved | INT |
-| total_solved | INT |
+title, content, is_active, created_by (FK → users.id)
+
+## Feedback — `feedback`
+
+user_id FK, message — *(the originally planned `rating` column is **not** implemented)*
+
+## Achievement Definitions — `achievement_definitions` (badge catalog)
+
+| Column | Type | Notes |
+|----------|------|------|
+| id | BIGINT PK | |
+| code | VARCHAR(50) | unique, e.g. `ATS_EXPERT` — 17 badges seeded by `data.sql` |
+| category | VARCHAR(30) | enum: RESUME, INTERVIEW, JOB_TRACKER, STUDY_PLANNER, GITHUB, LEETCODE, PLACEMENT, CONSISTENCY, SPECIAL |
+| title / description / icon / color | | display text, emoji icon, hex accent |
+| xp_reward | INT | XP granted on unlock |
+| activity_type | VARCHAR(40) | enum; NULL for cross-cutting badges (Power User) |
+| target_value | INT | unlock threshold |
+| sort_order | INT | catalog order |
+
+## User Achievements — `user_achievements`
+
+user_id FK, achievement_id FK, unlocked_at — **unique (user_id, achievement_id)** (a badge can never unlock twice)
+
+## XP History — `xp_history`
+
+user_id FK, amount (INT > 0), reason (enum, e.g. activity type or `ACHIEVEMENT_UNLOCKED`), description — append-only ledger; total XP = sum of entries
+
+## Readiness Snapshots — `readiness_snapshots`
+
+user_id FK, score, created_at — stored when the placement readiness score changes
 
 ---
 
-## Notifications
-
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| title | VARCHAR |
-| message | TEXT |
-| is_read | BOOLEAN |
-| created_at | TIMESTAMP |
-
----
-
-## Feedback
-
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| user_id | BIGINT |
-| message | TEXT |
-| rating | INT |
-| submitted_at | TIMESTAMP |
-
----
-
-## Announcements
-
-| Column | Type |
-|----------|------|
-| id | BIGINT |
-| title | VARCHAR |
-| description | TEXT |
-| created_at | TIMESTAMP |
-
----
-
-# 5. Relationships
+# 5. Relationships (summary)
 
 - One Role → Many Users
-- One User → Many Resumes
-- One Resume → Many Education Records
-- One Resume → Many Skills
-- One Resume → Many Projects
-- One Resume → Many Experience Records
-- One Resume → Many Certifications
-- One User → Many Job Applications
-- One User → Many Study Plans
-- One Study Plan → Many Study Tasks
-- One User → Many Interview History Records
-- One User → One GitHub Profile
-- One User → One LeetCode Statistics
-- One User → Many Notifications
-- One User → Many Feedback Entries
+- One User → Many Resumes, Job Applications, Study Planners, Notifications, Feedback, Password Reset Tokens, Interview Sessions, Resume Reviews, User Achievements, XP History, Readiness Snapshots
+- One Resume → Many Education / Skill / Project / Experience / Certification / Achievement records; optional Many-to-One ResumeTemplate
+- One Job Application → Many Timeline Events, Interview Schedules, Interview Notes, Attachments
+- One Achievement Definition → Many User Achievements
 
 ---
 
 # 6. Database Constraints
 
-- Email must be unique.
-- Password cannot be null.
-- Every user must have one role.
-- Every resume belongs to one user.
-- Every study task belongs to one study plan.
-- Foreign key constraints enforce referential integrity.
+- Email is unique.
+- Password cannot be null (BCrypt-hashed).
+- Every user has exactly one role.
+- Every resume/section belongs to one user/resume.
+- `interview_questions(category, question)` is unique.
+- `user_achievements(user_id, achievement_id)` is unique (duplicate-unlock backstop).
+- Foreign keys enforce referential integrity; user deletion cascades to their platform data.
 
 ---
 
-# 7. Indexing Strategy
+# 7. Indexing & Performance
 
-Indexes will be created on:
-
-- email
-- company_name
-- username
-- application_status
-
-to improve search performance.
+- Indexes on `email`, `company_name`, and status columns support the common lookups.
+- The question bank uses a native `ORDER BY RAND() LIMIT n` query (no full-table load).
+- Expensive reads are cached in Redis (dashboard, GitHub/LeetCode profiles, study/job lists, achievements) — see `docs/03_ARCHITECTURE.md` and `DEVLAUNCH_COMPLETE_TECHNICAL_DOCUMENTATION.md`.
 
 ---
 
 # 8. Achievements & Gamification
 
-The gamification module adds three tables seeded and managed by the achievement consumer. `ddl-auto: update` creates them automatically; the badge catalog is seeded idempotently in `data.sql` (`INSERT IGNORE` on the unique `code`).
-
-## achievement_definitions
-
-Static badge catalog shared by every user.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| id | BIGINT PK | auto-increment |
-| code | VARCHAR(50) | unique, e.g. `ATS_EXPERT` |
-| category | VARCHAR(30) | AchievementCategory enum (RESUME, INTERVIEW, JOB_TRACKER, STUDY_PLANNER, GITHUB, LEETCODE, PLACEMENT, CONSISTENCY, SPECIAL) |
-| title / description | VARCHAR / TEXT | display text |
-| icon | VARCHAR(20) | emoji badge icon |
-| color | VARCHAR(20) | hex accent color |
-| xp_reward | INT | XP granted on unlock |
-| activity_type | VARCHAR(40) | ActivityType enum; NULL for cross-cutting badges (Power User) |
-| target_value | INT | unlock threshold (e.g. 90 for ATS >= 90) |
-| sort_order | INT | catalog display order |
-
-## user_achievements
-
-Per-user unlock records. Unique constraint `uk_user_achievements_user_achievement (user_id, achievement_id)` guarantees a badge can never be unlocked twice, even under concurrent consumers or re-delivered messages.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| id | BIGINT PK | auto-increment |
-| user_id | BIGINT FK → users.id | |
-| achievement_id | BIGINT FK → achievement_definitions.id | |
-| unlocked_at | DATETIME | when the badge was unlocked |
-
-## xp_history
-
-Append-only XP ledger; the user's total XP is the sum of their entries (single source of truth for the level calculation).
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| id | BIGINT PK | auto-increment |
-| user_id | BIGINT FK → users.id | |
-| amount | INT | always positive; XP is never deducted |
-| reason | VARCHAR(40) | XpReason enum (activity type or ACHIEVEMENT_UNLOCKED) |
-| description | VARCHAR(300) | human-readable award description |
+The gamification tables (`achievement_definitions`, `user_achievements`, `xp_history`, `readiness_snapshots`) are created by `ddl-auto: update` and managed at runtime by `GamificationServiceImpl` / the RabbitMQ `AchievementActivityConsumer`. The badge catalog (17 definitions) is seeded idempotently in `data.sql`. See `docs/03_ARCHITECTURE.md` §15 and `DEVLAUNCH_COMPLETE_TECHNICAL_DOCUMENTATION.md` §14 for the design.
 
 ---
 
-# 9. Conclusion
+# 9. Deviations from the original plan
 
-The database design provides a normalized, scalable, and maintainable structure that supports all functional requirements of the DevLaunch application.
+| Planned table | Actual state |
+|---|---|
+| `study_plans` + `study_tasks` (plan hierarchy) | Merged into a single flat `study_planners` table — no plan/task split |
+| `github_profiles` (persisted per-user) | **Not persisted** — GitHub data is fetched live and Redis-cached |
+| `leetcode_stats` (persisted per-user) | **Not persisted** — LeetCode data is fetched live and Redis-cached |
+| `interview_history` (simple category/score/date) | Replaced by rich `interview_sessions` + snapshotted questions |
+| `feedback.rating` column | Not implemented — Feedback stores a message only |
+| — | Added: resume templates, timeline/interviews/notes/attachments, interview question bank, resume reviews, password reset tokens, gamification tables, readiness snapshots |
+
+---
+
+# 10. Conclusion
+
+The implemented database design is normalized, seeded with reference data (interview questions, badge catalog, roles, templates), and created automatically by Hibernate. It supports all functional requirements of the DevLaunch application; a migration tool (Flyway/Liquibase) is planned as a future hardening step.

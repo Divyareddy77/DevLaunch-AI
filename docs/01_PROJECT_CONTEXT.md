@@ -145,7 +145,6 @@ Future releases may include:
 - GitHub Login
 - LinkedIn Integration
 - Portfolio Generator
-- ATS Resume Analyzer
 - Mobile Application
 
 ---
@@ -415,14 +414,13 @@ The project will be considered successful if users are able to:
 
 Future versions of DevLaunch may include:
 
-- Google Authentication
-- GitHub Authentication
-- AI Resume Review
-- ATS Resume Score
+- Google Authentication (OAuth)
+- GitHub Authentication (OAuth)
 - LinkedIn Profile Analysis
 - Portfolio Website Generator
-- Placement Readiness Score
 - Mobile Application
+
+> Note: AI Resume Review / ATS scoring and the Placement Readiness Score were **implemented** in the current version (see `docs/10` and the technical documentation) and are therefore no longer future items.
 
 ---
 

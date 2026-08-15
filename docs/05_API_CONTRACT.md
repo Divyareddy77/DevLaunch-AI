@@ -7,223 +7,210 @@
 | Project | DevLaunch |
 | API Style | REST |
 | Data Format | JSON |
-| Authentication | JWT Bearer Token |
+| Authentication | JWT Bearer token (stateless) |
+| Interactive reference | Swagger UI at `/swagger-ui.html` (springdoc) |
+
+> **Note:** this document lists the endpoints **as actually implemented** in `backend/src/main/java/com/devlaunch/controller/`. Auth column: **Public** = no token, **User** = any authenticated user, **Admin** = `ROLE_ADMIN` only.
 
 ---
 
-# 1. Introduction
+# 1. Auth — `/api/auth` (Public)
 
-This document defines the REST API endpoints exposed by the DevLaunch backend.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register` | Register a student (BCrypt-hashed; no JWT issued) |
+| POST | `/api/auth/login` | Login → `{ accessToken, tokenType: "Bearer", expiresIn, message }` |
+| POST | `/api/auth/forgot-password` | Request a password-reset link (async email via RabbitMQ + SMTP) |
+| POST | `/api/auth/reset-password` | Reset password with a single-use token |
 
-All APIs exchange data using JSON and follow RESTful principles.
+# 2. Users — `/api/users` (User)
 
-Protected endpoints require JWT authentication.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/users/me` | Current profile (includes role) |
+| PUT | `/api/users/me` | Update profile |
+| PUT | `/api/users/change-password` | Change password (verifies current password) |
+| PUT | `/api/users/me/github` | Link GitHub username (`{username}`) |
+| DELETE | `/api/users/me/github` | Unlink GitHub username |
+| PUT | `/api/users/me/leetcode` | Link LeetCode username |
+| DELETE | `/api/users/me/leetcode` | Unlink LeetCode username |
+
+# 3. Dashboard — `/api/dashboard` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/dashboard` | Aggregated dashboard (resume, jobs, study, GitHub, LeetCode, interviews, readiness) |
+
+# 4. Resumes — `/api/resumes` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST / GET | `/api/resumes` | Create / list own resumes |
+| GET / PUT / DELETE | `/api/resumes/{id}` | Detail / update / delete |
+| PUT | `/api/resumes/{resumeId}/template/{templateId}` | Assign a resume template |
+| GET | `/api/resumes/{resumeId}/template` | Current template |
+| GET | `/api/resumes/{resumeId}/pdf` | Download PDF (`?template=` optional) |
+| POST / GET | `/api/resumes/{resumeId}/educations` (also `experiences`, `projects`, `skills`, `certifications`, `achievements`) | Create / list section items |
+| GET / PUT / DELETE | `/api/resumes/{resumeId}/{sections}/{itemId}` | Section item detail / update / delete |
+
+# 5. Resume Templates — `/api/resume-templates` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/resume-templates` | List templates (4 seeded) |
+| GET | `/api/resume-templates/{templateId}` | Template detail |
+
+# 6. Job Applications — `/api/job-applications` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST / GET | `/api/job-applications` | Create / list own applications |
+| GET | `/api/job-applications/analytics` | Aggregated stats (status counts, monthly trend, timeline) |
+| GET / PUT / DELETE | `/api/job-applications/{id}` | Detail / update / delete |
+| PUT | `/api/job-applications/{id}/status` | Status-only update (Kanban drag & drop) |
+| GET | `/api/job-applications/{id}/timeline` | Milestone timeline |
+| GET / POST | `/api/job-applications/{id}/interviews` | List / schedule interviews |
+| PUT / DELETE | `/api/job-applications/interviews/{interviewId}` | Update / cancel interview |
+| GET / POST | `/api/job-applications/{id}/notes` | List / add interview notes |
+| DELETE | `/api/job-applications/{id}/notes/{noteId}` | Delete note |
+| GET / POST | `/api/job-applications/{id}/attachments` | List / upload attachments (multipart) |
+| GET | `/api/job-applications/{id}/attachments/{attachmentId}/download` | Download attachment |
+| DELETE | `/api/job-applications/{id}/attachments/{attachmentId}` | Delete attachment |
+
+# 7. Study Planner — `/api/study-planners` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST / GET | `/api/study-planners` | Create / list study tasks |
+| GET / PUT / DELETE | `/api/study-planners/{id}` | Detail / update (status → COMPLETED triggers streaks) / delete |
+
+# 8. GitHub — `/api/github` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/github/{username}` | Live GitHub profile |
+| GET | `/api/github/{username}/repositories` | Live repository list |
+| GET | `/api/github/{username}/languages` | Language counts (computed from repos) |
+
+# 9. LeetCode — `/api/leetcode` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/leetcode/{username}` | Live solved counts / difficulty breakdown / ranking |
+
+# 10. AI — `/api/ai` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/ai/resume-review` | AI resume review / ATS analysis (`{resumeId, targetRole?}`) |
+| POST | `/api/ai/mock-interview/questions` | Start interview → questions + `sessionId` |
+| POST | `/api/ai/mock-interview/feedback` | Submit answers → scored feedback + report |
+| GET | `/api/ai/mock-interview/history` | Interview history + analytics |
+| GET | `/api/ai/mock-interview/categories` | Per-category bank size / attempts / best |
+| DELETE | `/api/ai/mock-interview/history/{sessionId}` | Delete a session |
+| POST | `/api/ai/transcribe` | Whisper speech-to-text (multipart audio) |
+
+# 11. Achievements / Gamification — `/api/achievements` (User, Redis-cached)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/achievements` | Badge catalog (17 definitions) |
+| GET | `/api/achievements/user` | Unlocked badges, newest first |
+| GET | `/api/achievements/summary` | Level, XP, progress, recent unlocks |
+| GET | `/api/achievements/history` | XP ledger (top 50) |
+| GET | `/api/achievements/progress` | Per-badge progress |
+
+# 12. Notifications — `/api/notifications` (User)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/notifications` | List (newest first) |
+| GET | `/api/notifications/unread-count` | Unread count (cached) |
+| PATCH | `/api/notifications/{id}/read` | Mark one read |
+| PUT | `/api/notifications/read-all` | Mark all read |
+| DELETE | `/api/notifications/{id}` | Delete |
+
+# 13. Announcements & Feedback
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/announcements/active` | User | Active announcements |
+| POST | `/api/feedback` | User | Submit feedback |
+
+# 14. Admin — `/api/admin` (Admin)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/admin/dashboard` | Platform stats + recent activity |
+| GET | `/api/admin/users?search=&role=&active=&page=&size=` | Paged user list |
+| GET | `/api/admin/users/{id}` | User detail |
+| PUT | `/api/admin/users/{id}/status?active=` | Activate / deactivate |
+| DELETE | `/api/admin/users/{id}` | Delete user |
+| GET / DELETE | `/api/admin/resumes` (`/{id}`) | Resume moderation |
+| GET / DELETE | `/api/admin/job-applications` (+ `/stats`) | Job application moderation |
+| GET / DELETE | `/api/admin/study-plans` (`/{id}`) | Study plan moderation |
+| GET | `/api/admin/ai/resume-reviews` | AI review history |
+| GET / DELETE | `/api/admin/ai/interviews` (`/{id}`) | Mock interview history |
+| GET / POST | `/api/admin/announcements` | List / create (fan-out to all users) |
+| PUT / DELETE | `/api/admin/announcements/{id}` | Update / delete |
+| GET / DELETE | `/api/admin/feedback` (`/{id}`) | Feedback moderation |
+
+# 15. Misc
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/test` | User | Demo endpoint — `"JWT Authentication Successful!"` |
 
 ---
 
-# 2. Authentication APIs
+# 16. Response Formats
 
-## Register User
+**Success** — module responses are plain DTOs (no wrapper). Examples:
 
-POST /api/auth/register
+`POST /api/auth/register` → `201 Created` with `UserResponse { id, firstName, lastName, email, phone, role, … }`
 
-### Request
+`POST /api/auth/login` → `200 OK`:
 
 ```json
 {
-  "firstName": "Divya",
-  "lastName": "Reddy",
-  "email": "divya@gmail.com",
-  "password": "Password@123"
+  "accessToken": "JWT_TOKEN",
+  "tokenType": "Bearer",
+  "expiresIn": 86400000,
+  "message": "Login successful"
 }
 ```
 
-### Response
+**Error** — `GlobalExceptionHandler` returns:
 
 ```json
 {
-  "message": "Registration Successful"
-}
-```
-
----
-
-## Login
-
-POST /api/auth/login
-
-### Request
-
-```json
-{
-  "email":"divya@gmail.com",
-  "password":"Password@123"
-}
-```
-
-### Response
-
-```json
-{
-  "accessToken":"JWT_TOKEN"
-}
-```
-
----
-
-## Forgot Password
-
-POST /api/auth/forgot-password
-
----
-
-## Reset Password
-
-POST /api/auth/reset-password
-
----
-
-# 3. User APIs
-
-GET /api/users/profile
-
-PUT /api/users/profile
-
-DELETE /api/users/profile
-
----
-
-# 4. Resume APIs
-
-GET /api/resumes
-
-GET /api/resumes/{id}
-
-POST /api/resumes
-
-PUT /api/resumes/{id}
-
-DELETE /api/resumes/{id}
-
----
-
-# 5. Job Application APIs
-
-GET /api/jobs
-
-GET /api/jobs/{id}
-
-POST /api/jobs
-
-PUT /api/jobs/{id}
-
-DELETE /api/jobs/{id}
-
-PATCH /api/jobs/{id}/status
-
----
-
-# 6. Study Planner APIs
-
-GET /api/study-plans
-
-POST /api/study-plans
-
-PUT /api/study-plans/{id}
-
-DELETE /api/study-plans/{id}
-
----
-
-# 7. Study Task APIs
-
-GET /api/tasks
-
-POST /api/tasks
-
-PUT /api/tasks/{id}
-
-DELETE /api/tasks/{id}
-
----
-
-# 8. Mock Interview APIs
-
-POST /api/interviews/start
-
-POST /api/interviews/submit
-
-GET /api/interviews/history
-
----
-
-# 9. GitHub APIs
-
-POST /api/github/connect
-
-GET /api/github/profile
-
-GET /api/github/statistics
-
----
-
-# 10. LeetCode APIs
-
-POST /api/leetcode/connect
-
-GET /api/leetcode/profile
-
-GET /api/leetcode/statistics
-
----
-
-# 11. Notification APIs
-
-GET /api/notifications
-
-PATCH /api/notifications/{id}/read
-
-DELETE /api/notifications/{id}
-
----
-
-# 12. Admin APIs
-
-GET /api/admin/users
-
-GET /api/admin/reports
-
-POST /api/admin/announcements
-
-DELETE /api/admin/users/{id}
-
----
-
-# 13. Standard Response Format
-
-Success Response
-
-```json
-{
-  "success": true,
-  "message": "Operation Successful",
-  "data": {}
-}
-```
-
-Error Response
-
-```json
-{
-  "success": false,
-  "message": "Validation Failed",
-  "errors": []
+  "timestamp": "2026-01-01T00:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "human-readable message",
+  "path": "/api/..."
 }
 ```
 
 ---
 
-# 14. Authentication
+# 17. HTTP Status Codes
+
+| Code | Meaning |
+|---|---|
+| 200 OK | Success |
+| 201 Created | Resource created |
+| 400 Bad Request | Validation failure / bad argument / invalid or expired reset token |
+| 401 Unauthorized | Bad credentials / missing or invalid JWT |
+| 403 Forbidden | Authenticated but role insufficient |
+| 404 Not Found | Resource or owner mismatch (also GitHub/LeetCode user not found) |
+| 409 Conflict | Duplicate email |
+| 502 Bad Gateway | Speech-to-text transcription failure |
+| 500 Internal Server Error | Unexpected failure (generic message) |
+
+---
+
+# 18. Authentication
 
 Protected APIs require:
 
@@ -231,74 +218,4 @@ Protected APIs require:
 Authorization: Bearer JWT_TOKEN
 ```
 
----
-
-# 15. Achievements & Gamification APIs
-
-All endpoints require a valid JWT and operate on the authenticated user's own achievements and XP. Responses are cached in Redis (`achievements` cache, 5-minute TTL) and evicted automatically whenever XP or badges change.
-
-## 15.1 Get Achievement Catalog
-
-**GET** `/api/achievements`
-
-Returns the full static badge catalog (shared by every user).
-
-Response: `200 OK` with a list of `AchievementResponse` objects (id, code, category, title, description, icon, color, xpReward, targetValue).
-
-## 15.2 Get User Achievements
-
-**GET** `/api/achievements/user`
-
-Returns the badges the authenticated user has unlocked, newest first.
-
-Response: `200 OK` with a list of `UnlockedAchievementResponse` objects (badge fields + unlockedAt).
-
-## 15.3 Get Achievement Summary
-
-**GET** `/api/achievements/summary`
-
-Returns the gamification summary: current level and level title, total XP, the XP boundaries of the current level (currentLevelXp, nextLevelXp, nextLevel, xpIntoLevel, xpNeededForNext, levelProgressPercent), badge completion (totalAchievements, unlockedCount, lockedCount, completionPercent), and the recent unlock timeline (latestUnlock, recentUnlocks).
-
-Response: `200 OK` with a single `AchievementSummaryResponse` object.
-
-## 15.4 Get XP History
-
-**GET** `/api/achievements/history`
-
-Returns the authenticated user's recent XP ledger entries, newest first (up to 50).
-
-Response: `200 OK` with a list of `XpHistoryResponse` objects (id, amount, reason, description, createdAt).
-
-## 15.5 Get Achievement Progress
-
-**GET** `/api/achievements/progress`
-
-Returns per-badge progress for the authenticated user (locked and unlocked badges, current progress towards the target, unlock timestamp when unlocked).
-
-Response: `200 OK` with a list of `AchievementProgressResponse` objects.
-
----
-
-# 16. HTTP Status Codes
-
-200 OK
-
-201 Created
-
-204 No Content
-
-400 Bad Request
-
-401 Unauthorized
-
-403 Forbidden
-
-404 Not Found
-
-500 Internal Server Error
-
----
-
-# Conclusion
-
-The API contract defines all REST endpoints required by the DevLaunch application and serves as the implementation reference for the Spring Boot backend.
+The full endpoint list is also documented with request/response details in `DEVLAUNCH_COMPLETE_TECHNICAL_DOCUMENTATION.md` (§24).

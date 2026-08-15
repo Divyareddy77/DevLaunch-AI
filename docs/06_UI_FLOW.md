@@ -21,24 +21,26 @@ The objective is to provide users with a simple, responsive, and intuitive inter
 
 # 2. Application Flow
 
+There is no separate landing page — the root path `/` redirects to `/dashboard`, and unauthenticated users are redirected to login by the route guards.
+
 ```
-Landing Page
-      │
-      ▼
 Login / Register
       │
       ▼
-Authentication
+Authentication (JWT)
       │
       ▼
 Dashboard
       │
- ┌────┼────────┬─────────┬─────────┬────────┐
- ▼    ▼        ▼         ▼         ▼        ▼
-Resume Jobs Study GitHub LeetCode Profile
+ ┌────┼───────┬────────┬─────────┬─────────┬────────┐
+ ▼    ▼       ▼        ▼         ▼         ▼        ▼
+Resume Jobs  Study  GitHub   LeetCode  Achievements
       │
       ▼
-Notifications
+AI Mock Interview / AI Resume Review
+      │
+      ▼
+Notifications · Profile
 ```
 
 ---
@@ -82,24 +84,31 @@ It displays:
 
 # 5. Navigation Menu
 
-The sidebar contains:
+The sidebar (per `frontend/src/utils/navigation.ts`) contains:
 
 - Dashboard
 - Resume Builder
 - Job Tracker
 - Study Planner
-- AI Mock Interview
 - GitHub Analytics
 - LeetCode Tracker
+- Achievements
+- AI Mock Interview
+- AI Resume Review
 - Notifications
 - Profile
 - Logout
 
-Admin users additionally see:
+Admin users additionally see (ROLE_ADMIN only):
 
+- Admin Dashboard
 - User Management
-- Reports
+- Resumes
+- Job Applications
+- Study Plans
+- AI Reports
 - Announcements
+- Feedback
 
 ---
 

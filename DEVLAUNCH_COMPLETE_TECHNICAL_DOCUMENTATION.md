@@ -209,7 +209,7 @@ DashboardController
 | Redis | ✅ | Cache backend; run via `docker/docker-compose.yml` (`redis:7-alpine`) |
 | RabbitMQ | ✅ | Message broker; run via `docker/docker-compose.yml` (`rabbitmq:3-management`) |
 | MySQL | ✅ | Primary database; **no container in docker-compose** — expected to run locally / externally (default `localhost:3306/devlaunch`) |
-| Docker Compose | 🟡 | Only RabbitMQ + Redis are containerized (`docker/docker-compose.yml`); there is **no** backend/frontend/MySQL service definition |
+| Docker Compose | ✅ | Full stack in `docker/docker-compose.yml`: backend, frontend, mysql, redis, rabbitmq (external network `devlaunch-network`) |
 | Swagger UI | ✅ | `http://localhost:8080/swagger-ui.html` (springdoc), JWT Bearer auth configured |
 | OAuth2 / GitHub login | 🔴 NOT IMPLEMENTED | Only username linking; no OAuth handshake |
 | Refresh token usage | 🔴 NOT IMPLEMENTED | `jwt.refresh-token.expiration` is configured but no refresh-token endpoint exists — only the access token is issued |
@@ -224,11 +224,11 @@ DashboardController
 DevLaunch/
 ├── backend/            # Spring Boot application (Maven)
 ├── frontend/           # React + Vite application
-├── docker/             # docker-compose.yml (Redis + RabbitMQ only)
+├── docker/             # docker-compose.yml (full stack: backend, frontend, mysql, redis, rabbitmq)
 ├── docs/               # 11 original design documents (01..11)
 ├── postman/            # empty (.gitkeep only) — no collections shipped
-├── .github/            # GitHub metadata
-└── README.md           # one-line project description
+├── .github/workflows/  # GitHub Actions — ci.yml (CI) + cd.yml (Azure CD)
+└── README.md           # full project README
 ```
 
 ## 3.2 Backend package structure
@@ -256,8 +256,8 @@ backend/src/main/java/com/devlaunch/
 │   ├── AnnouncementController, FeedbackController, GamificationController,
 │   └── TestController            # GET /api/test ("JWT Authentication Successful!")
 ├── dto/
-│   ├── request/                  # 33 request DTOs (RegisterRequest … UpdateUserRequest)
-│   └── response/                 # 45 response DTOs (DashboardResponse … XpHistoryResponse)
+│   ├── request/                  # 35 request DTOs (RegisterRequest … UpdateUserRequest)
+│   └── response/                 # 59 response DTOs (DashboardResponse … XpHistoryResponse)
 ├── entity/                       # JPA entities (see §6) + BaseEntity
 │   └── enums/                    # 17 enums (ApplicationStatus, RoleType, …)
 ├── exception/
@@ -300,9 +300,9 @@ backend/src/main/java/com/devlaunch/
 ```
 backend/src/main/resources/
 ├── application.yml               # ALL configuration (see §4)
-└── data.sql                      # seed: 517 interview questions + 17 achievement definitions
+└── data.sql                      # seed: 500 interview questions + 17 achievement definitions
 
-backend/src/test/                 # 33 test files (see §30) + application-test.yml
+backend/src/test/                 # 35 test files (see §30) + application-test.yml
 ```
 
 ## 3.3 Frontend structure
@@ -364,7 +364,7 @@ Single configuration file; **every value is environment-variable overridable** (
 | `spring.rabbitmq.*` | `localhost:5672`, guest/guest | RabbitMQ connection |
 | `spring.data.redis.*` | `localhost:6379`, timeout 2000 ms | Redis connection |
 | `spring.mail.*` | `smtp.gmail.com:587`, STARTTLS, empty credentials by default | Email delivery; empty credentials ⇒ failures are logged, never thrown |
-| `devlaunch.auth.frontend-base-url` | `http://localhost:5173` (`FRONTEND_BASE_URL`) | Password-reset link URL in emails |
+| `devlaunch.auth.frontend-base-url` | `http://localhost:3000` (`FRONTEND_BASE_URL`) | Frontend origin for password-reset links and the CORS allowed origin |
 | `devlaunch.auth.reset-token-expiry-minutes` | `30` | Reset-token validity window |
 | `devlaunch.ai.provider-api-key` | empty (`AI_PROVIDER_API_KEY`) | Enables real OpenAI; when empty the app uses deterministic fallbacks |
 | `devlaunch.ai.model` | `gpt-4o-mini` (`AI_MODEL`) | Chat Completions model |
@@ -386,7 +386,7 @@ Single configuration file; **every value is environment-variable overridable** (
 - Dev server on **port 3000**
 - Proxy `/api` → `http://localhost:8080` (so the frontend can call the backend without CORS in dev)
 
-> ⚠️ Note an inconsistency: `vite.config.ts` uses port 3000, while the backend default `FRONTEND_BASE_URL` (used for reset links) is `http://localhost:5173` (Vite's default). If the frontend runs on 3000, `FRONTEND_BASE_URL` should be set to `http://localhost:3000` in production.
+> ✅ Aligned: `vite.config.ts` serves on port 3000 and the backend default `FRONTEND_BASE_URL` is `http://localhost:3000`. In production set `FRONTEND_BASE_URL` to the deployed frontend origin (it drives both reset links and the CORS allowed origin).
 
 ## 4.5 `frontend/tsconfig.json` / `tsconfig.node.json`
 
@@ -406,9 +406,15 @@ Strict TypeScript: `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthro
 
 ## 4.8 `docker/docker-compose.yml`
 
-- **rabbitmq:3-management** — ports 5672 (AMQP) + 15672 (management UI), guest/guest, named volume
-- **redis:7-alpine** — port 6379, named volume
-- No MySQL/backend/frontend containers. `docker compose up` in `docker/` starts only Redis + RabbitMQ.
+Full stack on the external `devlaunch-network`:
+
+- **mysql:8.0** — `devlaunch-mysql`, host port 3307 → 3306, database `devlaunch`, named volume
+- **redis:7-alpine** — `devlaunch-redis`, port 6379, named volume
+- **rabbitmq:3-management** — `devlaunch-rabbitmq`, ports 5672 (AMQP) + 15672 (management UI), guest/guest, named volume
+- **backend** — `devlaunch-backend`, builds `../backend` (its Dockerfile), host port 8081 → 8080; env vars use the service names (`SPRING_DATASOURCE_URL=jdbc:mysql://devlaunch-mysql:3306/devlaunch…`, `REDIS_HOST=redis`, `RABBITMQ_HOST=rabbitmq`, `FRONTEND_BASE_URL`, `UPLOAD_DIR=/app/uploads`); depends on mysql/redis/rabbitmq
+- **frontend** — `devlaunch-frontend`, builds `../frontend` (its Dockerfile), host port 5173 → 80 (nginx); depends on backend
+
+`docker compose up -d` in `docker/` starts the whole stack. The network must exist first: `docker network create devlaunch-network`.
 
 ## 4.9 `backend/src/test/resources/application-test.yml`
 
@@ -416,7 +422,18 @@ Test profile: H2 in-memory (`MODE=MySQL`), `sql.init.mode: never`, `ddl-auto: cr
 
 ## 4.10 `.env` files
 
-🔴 **No `.env` file exists anywhere in the repo.** All configuration flows through environment variables referenced in `application.yml` (the `frontend/` folder has none either; the Axios base URL comes from `import.meta.env.VITE_API_URL`, otherwise it uses the `/api` proxy).
+🔴 **No `.env` file is tracked in the repository** (a local `frontend/.env` may exist on disk for development — it is gitignored). All configuration flows through environment variables referenced in `application.yml`; the Axios base URL comes from `import.meta.env.VITE_API_URL` (baked into the bundle by Vite), otherwise it falls back to the `/api` proxy.
+
+## 4.11 Dockerfiles & nginx
+
+- **`backend/Dockerfile`** — multi-stage: `maven:3.9.9-eclipse-temurin-21` build (`mvn clean package -DskipTests`) → `eclipse-temurin:21-jre` runtime, `EXPOSE 8080`, `java -jar app.jar`.
+- **`frontend/Dockerfile`** — multi-stage: `node:20-alpine` build (`npm ci` → `npm run build`) → `nginx:alpine` serving `dist/` with `nginx.conf`, `EXPOSE 80`. Accepts `ARG VITE_API_URL` (baked into the bundle by Vite; empty default) — the CD workflow passes the deployed backend URL via `--build-arg`.
+- **`frontend/nginx.conf`** — SPA fallback to `index.html`; `/api/` is proxied to `http://devlaunch-backend:8080` (resolves on the compose network; in Azure Container Apps the frontend uses the baked `VITE_API_URL` instead).
+
+## 4.12 GitHub Actions workflows (`.github/workflows/`)
+
+- **`ci.yml` — CI (validation only).** Triggers on pull requests targeting `develop`/`main` and on pushes to `develop`/`main`. Runs backend tests (`./mvnw test`, Java 21 Temurin), the frontend production build (`npm ci` + `npm run build`, Node 20), and `docker build` of both Dockerfiles. Never pushes images or touches Azure.
+- **`cd.yml` — CD (deploys to EXISTING Azure resources).** Triggers on push to `main` (+ `workflow_dispatch`), gated by the GitHub `production` environment with a concurrency guard. Authenticates to Azure via **OIDC** (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`), logs into the existing `devlaunchacr` registry, builds + pushes `devlaunch-backend` / `devlaunch-frontend` images tagged with `${{ github.sha }}` (immutable, no `latest`), then runs `az containerapp update --image …` for the existing `devlaunch-backend` and `devlaunch-frontend` Container Apps in `devlaunch-rg` — image reference only; the apps' environment variables/secrets are preserved and Azure Container Apps creates a normal new revision. The frontend build requires the repository variable `VITE_API_URL` (the existing `devlaunch-backend` Container App URL).
 
 ---
 
@@ -470,7 +487,7 @@ Test profile: H2 in-memory (`MODE=MySQL`), `sql.init.mode: never`, `ddl-auto: cr
 
 - **Engine**: MySQL 8+ (H2 for tests), accessed via **Spring Data JPA / Hibernate** with `ddl-auto: update` (schema auto-created; **no migration tool**).
 - **Auditing**: every entity except `Role`/`ResumeTemplate`/`AchievementDefinition`/`InterviewQuestion`/`Announcement`-style tables that use it extends `BaseEntity` (`id` BIGINT auto-increment, `created_at`, `updated_at`) with `@CreatedDate/@LastModifiedDate` + `@EnableJpaAuditing`.
-- **Seeds** (`data.sql`, idempotent `INSERT IGNORE`): 517 interview questions across 5 categories + 17 achievement definitions.
+- **Seeds** (`data.sql`, idempotent `INSERT IGNORE`): 500 interview questions across 5 categories + 17 achievement definitions.
 
 ## 6.1 Entity inventory & relationships
 
@@ -611,7 +628,8 @@ erDiagram
 
 ## 7.4 CORS
 
-- 🔴 **No CORS configuration exists in the backend.** In development the Vite proxy (`/api` → `8080`) avoids cross-origin calls. If the frontend is served from a different origin in production, CORS must be added.
+- ✅ **CORS is configured** in `SecurityConfig` (`CorsConfigurationSource` bean): allowed origin = `devlaunch.auth.frontend-base-url` (`FRONTEND_BASE_URL`, default `http://localhost:3000`), allowed methods GET/POST/PUT/DELETE/PATCH/OPTIONS, allowed headers Authorization/Content-Type/Accept/Origin/X-Requested-With, `allowCredentials=true`, registered on `/**`. Preflight `OPTIONS /**` requests are `permitAll`.
+- In development the Vite proxy (`/api` → `8080`) avoids cross-origin calls entirely; the CORS config matters for deployed origins (e.g. the Azure frontend Container App). Keep `FRONTEND_BASE_URL` in sync with the deployed frontend origin.
 
 ## 7.5 Public vs protected endpoints
 
@@ -999,7 +1017,7 @@ DashboardController → DashboardServiceImpl (@Cacheable "dashboard", 5 m)
 
 | Step | Implementation |
 |---|---|
-| Question generation | **OpenAI provider** when `AI_PROVIDER_API_KEY` set (`OpenAiMockInterviewProvider.generateQuestions`, strict-JSON system prompt). Otherwise / on failure → **deterministic** `SampleMockInterviewProvider` → `InterviewQuestionBankServiceImpl` reads the **database question bank** (517 seeded questions; native `ORDER BY RAND() LIMIT n`; balanced 3 easy/4 medium/3 hard mix for MIXED) |
+| Question generation | **OpenAI provider** when `AI_PROVIDER_API_KEY` set (`OpenAiMockInterviewProvider.generateQuestions`, strict-JSON system prompt). Otherwise / on failure → **deterministic** `SampleMockInterviewProvider` → `InterviewQuestionBankServiceImpl` reads the **database question bank** (500 seeded questions; native `ORDER BY RAND() LIMIT n`; balanced 3 easy/4 medium/3 hard mix for MIXED) |
 | Answer evaluation | **OpenAI provider** (`evaluate`, strict-JSON feedback: per-question score 0–100, feedback, suggestions, improvedAnswer; overall + 7 dimension metrics via `InterviewFeedbackMetrics`). Otherwise / on failure → **rule-based** `SampleMockInterviewProvider` heuristics (declined/filler/gibberish detection; category-relevance keywords; question-concept checks; length+keyword scoring) |
 | Voice transcription | **OpenAI Whisper** (`OpenAiWhisperTranscriber`, `whisper-1`, `verbose_json`, 300 s read timeout). Requires the API key; friendly errors otherwise |
 | Persistence & history | **No AI** — `InterviewSession` + snapshotted `InterviewSessionQuestion`s stored in MySQL; all analytics computed in Java |
@@ -1082,7 +1100,7 @@ delete  DELETE /api/ai/mock-interview/history/{sessionId}
 - **Read/update/delete** (`NotificationController` + `NotificationServiceImpl`, all user-scoped):
   - `GET /api/notifications` — list (newest first)
   - `GET /api/notifications/unread-count` — count (cached `notifications`, TTL 2 m; `Long` typed serializer)
-  - `PUT /api/notifications/{id}/read` (also `PATCH` alias) — mark read
+  - `PATCH /api/notifications/{id}/read` — mark read
   - `PUT /api/notifications/read-all` — mark all read
   - `DELETE /api/notifications/{id}` — delete
 - **Schedulers** also *trigger* notifications: 7:00 interview reminders, 9:00 overdue study tasks.
@@ -1364,7 +1382,7 @@ See the table in §10.2 (base `/api/job-applications`).
 
 | GET | /api/notifications | list |
 | GET | /api/notifications/unread-count | count |
-| PUT/PATCH | /api/notifications/{id}/read | mark read |
+| PATCH | /api/notifications/{id}/read | mark read |
 | PUT | /api/notifications/read-all | mark all |
 | DELETE | /api/notifications/{id} | delete |
 
@@ -1500,7 +1518,7 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 | Role-based access | `ROLE_ADMIN` required for `/api/admin/**`; `ROLE_STUDENT` default |
 | Stateless sessions | `SessionCreationPolicy.STATELESS` + CSRF disabled (REST/stateless) |
 | Endpoint protection | default `anyRequest().authenticated()` |
-| CORS | 🔴 none configured (dev uses Vite proxy) |
+| CORS | ✅ configured — allowed origin from `devlaunch.auth.frontend-base-url` (`FRONTEND_BASE_URL`), OPTIONS preflight permitted, `allowCredentials=true` |
 | Input validation | Bean Validation on all request DTOs + frontend zod |
 | SQL injection | No raw string concatenation; only JPA-derived queries + a few parameterized native queries (`ORDER BY RAND()` — no user input) |
 | Sensitive configuration | Secrets only via env vars; `data.sql`/`application.yml` ship **dev defaults** (see below); `@JsonIgnore` on `User.password` |
@@ -1517,9 +1535,9 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 3. **Default admin account** is seeded with a hard-coded password printed to logs (`DataInitializer`) — must be changed; consider forcing a change on first login.
 4. **No rate limiting / account lockout** on login or forgot-password.
 5. **No refresh-token rotation or logout/revocation** — JWT valid until expiry.
-6. **No CORS config** — needed if frontend served from another origin.
+6. **CORS origin follows `FRONTEND_BASE_URL`** — keep the deployed value in sync with the frontend origin, or cross-origin API calls will be rejected.
 7. **No custom `AuthenticationEntryPoint`** — default 403/401 body is framework-generated.
-8. `JwtAuthenticationFilter` logs the **full Authorization header and token** at `System.out.println` (debug residue) — remove before production.
+8. ✅ **Resolved** — the debug `System.out.println` statements (including the full Authorization header and token) were removed from `JwtAuthenticationFilter`; nothing sensitive is logged.
 9. GitHub/LeetCode calls are **unauthenticated** (rate-limit risk on public API); consider tokens, retry/backoff, and longer cache TTLs.
 10. No HTTPS enforcement config (deployment concern).
 11. `Feedback` has no moderation workflow beyond view/delete; no profanity/abuse checks.
@@ -1529,7 +1547,7 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 
 # 30. TESTING
 
-## 30.1 Backend tests (33 files, `backend/src/test/java`)
+## 30.1 Backend tests (35 files, `backend/src/test/java`)
 
 | Area | Test files | Covers |
 |---|---|---|
@@ -1565,7 +1583,7 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 | Study plan → tasks | 🟡 Partially implemented | `StudyPlanner` entity | **flat task model**; no plan/task hierarchy from the docs |
 | GitHub analytics | 🔵 Enhanced | `GitHubServiceImpl` + Redis | live API + cache; plan wanted stored `github_profiles` |
 | LeetCode tracker | ✅ Implemented | `LeetCodeServiceImpl` (GraphQL) | live; no streak (not in plan either) |
-| AI mock interview | 🔵 Enhanced | `AiServiceImpl`, providers, `InterviewSession` | question bank (517), voice, history, streaks |
+| AI mock interview | 🔵 Enhanced | `AiServiceImpl`, providers, `InterviewSession` | question bank (500), voice, history, streaks |
 | AI resume review | ✅ Implemented | `AiServiceImpl`, `ResumeReview` | |
 | ATS analysis | 🔵 Enhanced (added later) | `ResumeReview.atsScore`, category scores | beyond original plan |
 | Gamification (XP/levels/badges) | 🔵 Enhanced (added later) | `Gamification*`, `XpHistory`, `LevelService` | 17 badges |
@@ -1577,7 +1595,8 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 | Announcements | ✅ Implemented | `Announcement`, `AdminServiceImpl`, `AnnouncementController` | notification fan-out |
 | Feedback | ✅ Implemented | `Feedback`, `FeedbackController`, admin review | no rating column (plan had rating) |
 | Swagger/OpenAPI | ✅ Implemented | `OpenApiConfig` | JWT scheme |
-| Docker (full app) | 🟡 Partial | `docker/docker-compose.yml` | only Redis + RabbitMQ; no app/MySQL containers |
+| Docker (full app) | ✅ Implemented | `docker/docker-compose.yml` | backend, frontend, mysql, redis, rabbitmq |
+| CI/CD (GitHub Actions) | ✅ Implemented | `.github/workflows/ci.yml`, `.github/workflows/cd.yml` | CI validation (tests/build/docker) + Azure CD via OIDC → existing Container Apps |
 | Refresh tokens | 🔴 Not implemented | `application.yml` only | config present, endpoint absent |
 | Dark mode | 🟡 Partial | `ThemeContext` | toggle + localStorage, but code comment says only light theme active |
 | Question bank admin management | 🔴 Planned | `InterviewQuestion` javadoc, `docs/07_TASKS.md` | "future admin module" — no endpoint |
@@ -1629,7 +1648,7 @@ cache/RedisCacheConfig.java               → cache manager, TTLs, JSON serializ
 cache/GracefulCacheErrorHandler.java      → degrade to DB on Redis failure
 exception/GlobalExceptionHandler.java     → consistent ErrorResponse
 entity/BaseEntity.java                    → id/createdAt/updatedAt auditing
-data.sql                                  → 517 questions + 17 achievements seed
+data.sql                                  → 500 questions + 17 achievements seed
 ```
 
 ## Frontend — most important files
@@ -1728,7 +1747,7 @@ index.css                  → design tokens + ~25 animations
 **DTO**
 - What: Data Transfer Object — a plain class that moves data across the API boundary.
 - Why: don't expose entities (e.g. password), control the shape.
-- How: 33 request DTOs + 45 response DTOs; MapStruct converts DTO↔entity.
+- How: 35 request DTOs + 59 response DTOs; MapStruct converts DTO↔entity.
 - Analogy: a takeout container vs the whole kitchen.
 
 **Entity**
@@ -1825,7 +1844,7 @@ index.css                  → design tokens + ~25 animations
 
 **Docker Compose**
 - What: runs multi-container services from a YAML file.
-- How: `docker/docker-compose.yml` starts Redis + RabbitMQ only.
+- How: `docker/docker-compose.yml` starts the full stack — backend, frontend, MySQL, Redis, RabbitMQ (external network `devlaunch-network`).
 - Analogy: a one-button appliance start-up for the infrastructure.
 
 ---
@@ -1884,7 +1903,7 @@ index.css                  → design tokens + ~25 animations
 2. **Name all 17 badges.** Resume Explorer, ATS Expert/Master, First Application, Job Hunter, Interview Beginner/Expert, Communication Pro, Study Starter, Consistency Champion, GitHub Connected/Contributor, LeetCode Beginner/Intermediate/Master, Placement Ready, Power User.
 3. **Which endpoints exist for GitHub?** GET `/api/github/{username}`, `/repositories`, `/languages` + connect/disconnect under `/api/users/me/github`.
 4. **Which external APIs are called?** GitHub REST, LeetCode GraphQL, OpenAI Chat Completions, OpenAI Whisper, SMTP.
-5. **How many interview categories and questions?** 5 categories (HR/Java/Spring Boot/SQL/React), 517 seeded questions.
+5. **How many interview categories and questions?** 5 categories (HR/Java/Spring Boot/SQL/React), 500 seeded questions.
 6. **What are the interview difficulty modes?** EASY/MEDIUM/HARD/MIXED; timed flag; configurable question count.
 7. **What scores does an interview session store?** Overall + technical, communication, confidence, problem-solving, clarity, vocabulary, professionalism + per-question feedback/suggestions/improvedAnswer.
 8. **Which RabbitMQ queues exist?** 11 (see §20.2) + DLQ.
@@ -1899,7 +1918,7 @@ index.css                  → design tokens + ~25 animations
 17. **What happens on 401 in the frontend?** Response interceptor clears the token and redirects to `/auth/login`.
 18. **Which routes are public-only?** Login, register, forgot-password, reset-password (`PublicOnlyRoute`).
 19. **What is the default admin email?** `admin@devlaunch.com` (see §29 for the caveat).
-20. **What seed data runs on every startup?** `data.sql` — 517 questions + 17 achievements via idempotent `INSERT IGNORE`.
+20. **What seed data runs on every startup?** `data.sql` — 500 questions + 17 achievements via idempotent `INSERT IGNORE`.
 
 ## 35.4 Architecture (20)
 
@@ -1939,7 +1958,6 @@ Auth (JWT + BCrypt), profile + change password, password reset (RabbitMQ + SMTP)
 ## Partially completed (🟡)
 
 - Study planner is flat tasks (no plan→task hierarchy)
-- Docker only covers Redis + RabbitMQ (no app/MySQL containers)
 - Dark mode toggle exists but only light theme is active
 - GitHub/LeetCode integration is username-based live fetching (no OAuth, no persistence)
 
@@ -1949,7 +1967,7 @@ Auth (JWT + BCrypt), profile + change password, password reset (RabbitMQ + SMTP)
 - Question-bank admin management
 - Global leaderboard (constant reserved)
 - ESLint config, frontend component/E2E tests
-- CORS configuration, rate limiting, custom auth entry point
+- Rate limiting, custom auth entry point
 - Postman collections (folder empty)
 
 ## Technologies used (summary)
@@ -1980,8 +1998,8 @@ JWT stateless auth, BCrypt, role-based access, async messaging with retry/DLQ, c
 ## Recommended final improvements
 
 1. Replace `ddl-auto: update` with Flyway/Liquibase migrations
-2. Implement refresh tokens + logout/revocation; remove debug `System.out.println` from `JwtAuthenticationFilter`
-3. Add CORS config, rate limiting, and a custom `AuthenticationEntryPoint`
+2. Implement refresh tokens + logout/revocation
+3. Add rate limiting and a custom `AuthenticationEntryPoint`
 4. Move secrets out of defaults (`JWT_SECRET`, DB password, default admin) into a secret manager; force admin password change
 5. Containerize the backend + frontend + MySQL in docker-compose with health checks
 6. Add the question-bank admin module and global leaderboard
