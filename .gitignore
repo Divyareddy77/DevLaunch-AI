@@ -13,6 +13,7 @@
 # Maven
 # =========================
 target/
+**/target/
 
 # =========================
 # Node.js
@@ -34,3 +35,29 @@ node_modules/
 # =========================
 .DS_Store
 Thumbs.db
+# =========================
+# Freebuff
+# =========================
+.freebuff/
+# Backend log files
+backend/logs/
+*.log
+*.gz
+
+# =========================
+# Frontend build output
+# =========================
+dist/
+.vite/
+*.tsbuildinfo
+
+# =========================
+# Java compiled classes
+# =========================
+*.class
+
+# =========================
+# Environment Variable Files
+# =========================
+.env.*
+!.env.example

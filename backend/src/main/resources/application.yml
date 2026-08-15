@@ -1,0 +1,145 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: devlaunch-backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/devlaunch?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+
+  servlet:
+    multipart:
+      # Job application attachments (resumes, cover letters, offer letters)
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:10MB}
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: ${JPA_FORMAT_SQL:true}
+        jdbc:
+          batch_size: ${JPA_BATCH_SIZE:25}
+    open-in-view: false
+    # Run the SQL seed data after Hibernate has created/updated the schema
+    # so the interview question bank is populated on startup.
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      # data.sql is executed on every startup (including non-embedded databases)
+      # and is idempotent thanks to INSERT IGNORE + the unique key on
+      # interview_questions(category, question).
+      mode: always
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+
+  # Redis is the caching layer for expensive read operations (dashboard,
+  # GitHub/LeetCode analytics, study planner, job tracker, notifications).
+  # The app stays fully functional when Redis is unavailable — cache
+  # failures are logged and reads fall back to the database.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: ${REDIS_TIMEOUT:2000}
+
+  # SMTP configuration used by the EmailService for password reset emails.
+  # Leave MAIL_USERNAME/MAIL_PASSWORD empty in development — sending failures
+  # are logged and never break the forgot-password flow.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    # Default the from address to the SMTP authenticating account so a
+    # configured username without an explicit MAIL_FROM still works.
+    from: ${MAIL_FROM:${MAIL_USERNAME:devlaunch@devlaunch.com}}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
+# AI Provider Configuration
+# Optional LLM provider (e.g. OpenAI) used by the AI module. When no API key
+# is configured, the application falls back to deterministic sample analysis
+# so all AI features remain fully functional.
+devlaunch:
+  # Password reset flow configuration.
+  auth:
+    # Base URL of the frontend used to build the reset link in emails.
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    # How long a password reset token stays valid, in minutes.
+    reset-token-expiry-minutes: ${RESET_TOKEN_EXPIRY_MINUTES:30}
+
+  ai:
+    provider-api-key: ${AI_PROVIDER_API_KEY:}
+    model: ${AI_MODEL:gpt-4o-mini}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:10}
+    read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
+    # Whisper speech-to-text used for voice answers in the mock interview.
+    # Shares the same API key and base URL; only the model and timeout differ
+    # (transcription of a several-minute answer can take a while).
+    whisper-model: ${AI_WHISPER_MODEL:whisper-1}
+    whisper-read-timeout-seconds: ${AI_WHISPER_READ_TIMEOUT_SECONDS:300}
+
+  # Local directory where job application attachments are stored on disk.
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:ThisIsADevelopmentSecretKeyThatIsAtLeast32CharactersLong}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-token:
+    expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# Springdoc OpenAPI (Swagger)
+springdoc:
+#  api-docs:
+#    enabled: ${SPRINGDOC_ENABLED:true}
+#    path: /api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: com.devlaunch.controller
+
+# Logging
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.devlaunch: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework: ${LOG_LEVEL_SPRING:WARN}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:DEBUG}
+    org.hibernate.type.descriptor.sql: ${LOG_LEVEL_HIBERNATE_BIND:TRACE}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE_PATH:logs/devlaunch-backend.log}
+    max-size: ${LOG_FILE_MAX_SIZE:10MB}
+    max-history: ${LOG_FILE_MAX_HISTORY:30}
