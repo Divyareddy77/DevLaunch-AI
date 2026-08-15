@@ -1,0 +1,121 @@
+# ============================================================
+# CD — Continuous Deployment to EXISTING Azure resources
+# ============================================================
+# What this workflow does:
+#   - Triggers on a push to `main` (or manually via workflow_dispatch)
+#   - Builds the backend and frontend images from the repository's
+#     existing Dockerfiles, tagged with the immutable commit SHA
+#   - Pushes them to the EXISTING Azure Container Registry
+#   - Updates the EXISTING devlaunch-backend / devlaunch-frontend
+#     Container Apps (image only)
+#
+# What this workflow does NOT do:
+#   - It creates NO new resources: no resource group, no ACR, no
+#     Container Apps, no MySQL / Redis / RabbitMQ / Log Analytics
+#   - It does NOT modify the environment variables or secrets already
+#     configured on the Container Apps — only the container image
+#     reference is updated, and Azure Container Apps creates a normal
+#     new revision
+#
+# EXISTING Azure resources (source of truth for infrastructure):
+#   Resource group            : devlaunch-rg
+#   Container Registry        : devlaunchacr
+#   Container Apps            : devlaunch-backend, devlaunch-frontend
+#   Container Apps environment: devlaunch-env
+#
+# Why github.sha is used for tags:
+#   Each image tag is unique per commit, so every revision maps to an
+#   exact source revision and can be rolled back cleanly. No "latest"
+#   tag is used for deployments.
+#
+# Where secrets/variables come from:
+#   - Secrets  : GitHub "production" environment — AZURE_CLIENT_ID,
+#                AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (Azure OIDC
+#                federated credentials; no long-lived Azure client
+#                secret is stored in GitHub)
+#   - Variables: repository variable VITE_API_URL — the public URL of
+#                the EXISTING devlaunch-backend Container App, baked
+#                into the frontend bundle at build time (see the
+#                frontend build step)
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one production deployment runs at a time.
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # required for Azure OIDC federated credentials
+
+jobs:
+  deploy:
+    name: Build, push and deploy to Azure
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Azure OIDC authentication — the workflow's federated identity
+      # (issuer https://token.actions.githubusercontent.com) must be
+      # registered on the Azure app registration whose client ID is
+      # stored in AZURE_CLIENT_ID.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Backend image — built from the existing backend/Dockerfile
+      # (context: backend/), pushed to the existing devlaunchacr.
+      - name: Build and push backend image
+        run: |
+          az acr login --name devlaunchacr
+          docker build -t devlaunchacr.azurecr.io/devlaunch-backend:${{ github.sha }} backend/
+          docker push devlaunchacr.azurecr.io/devlaunch-backend:${{ github.sha }}
+
+      # Frontend image — Vite inlines import.meta.env.VITE_API_URL at
+      # build time, so the URL of the existing devlaunch-backend
+      # Container App must be supplied when the image is built. It is
+      # provided via the VITE_API_URL repository variable — never
+      # hard-coded in source code. The build fails loudly if the
+      # variable is missing, to avoid deploying a broken frontend.
+      - name: Build and push frontend image
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::VITE_API_URL repository variable is not set. Set it to the existing devlaunch-backend Container App URL before deploying."
+            exit 1
+          fi
+          az acr login --name devlaunchacr
+          docker build --build-arg VITE_API_URL="$VITE_API_URL" \
+            -t devlaunchacr.azurecr.io/devlaunch-frontend:${{ github.sha }} frontend/
+          docker push devlaunchacr.azurecr.io/devlaunch-frontend:${{ github.sha }}
+
+      # Deploy — `az containerapp update --image` only changes the
+      # container image on the EXISTING app and lets Azure Container
+      # Apps create a normal new revision. The environment variables
+      # and secrets already configured on the apps are preserved.
+      - name: Deploy backend Container App
+        run: |
+          az containerapp update \
+            --name devlaunch-backend \
+            --resource-group devlaunch-rg \
+            --image devlaunchacr.azurecr.io/devlaunch-backend:${{ github.sha }}
+
+      - name: Deploy frontend Container App
+        run: |
+          az containerapp update \
+            --name devlaunch-frontend \
+            --resource-group devlaunch-rg \
+            --image devlaunchacr.azurecr.io/devlaunch-frontend:${{ github.sha }}
