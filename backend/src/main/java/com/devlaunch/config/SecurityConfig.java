@@ -2,6 +2,8 @@ package com.devlaunch.config;
 
 import com.devlaunch.security.JwtAuthenticationFilter;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -38,11 +40,14 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final String frontendBaseUrl;
 
     public SecurityConfig(
-            final JwtAuthenticationFilter jwtAuthenticationFilter) {
+            final JwtAuthenticationFilter jwtAuthenticationFilter,
+            @Value("${devlaunch.auth.frontend-base-url}") final String frontendBaseUrl) {
 
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.frontendBaseUrl = frontendBaseUrl;
     }
 
     @Bean
@@ -94,9 +99,7 @@ public class SecurityConfig {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
-        configuration.setAllowedOrigins(Arrays.asList(
-                "https://devlaunch-frontend.agreeablehill-66c4775f.southindia.azurecontainerapps.io"
-        ));
+        configuration.setAllowedOrigins(Arrays.asList(frontendBaseUrl));
 
         configuration.setAllowedMethods(Arrays.asList(
                 "GET",
