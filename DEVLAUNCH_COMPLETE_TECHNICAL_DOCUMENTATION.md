@@ -169,7 +169,7 @@ DashboardController
 | MapStruct | 1.6.3 | DTO ↔ Entity mapping | `mapper/*.java` (AuthMapper, ResumeMapper, JobApplicationMapper, …) | `pom.xml` annotationProcessorPaths |
 | Spring Validation | managed by Boot | Bean Validation (`@Valid`, `@NotBlank`, `@Email`, …) | All request DTOs in `dto/request/`, `GlobalExceptionHandler` | `pom.xml` |
 | Spring Mail (SMTP) | managed by Boot | Sending password-reset emails | `EmailServiceImpl`, `ForgotPasswordEmailConsumer` | `spring.mail.*` in application.yml |
-| Spring AMQP / RabbitMQ | managed by Boot | Async event backbone | `messaging/**` (publisher, config, 12 consumers) | `spring.rabbitmq.*`, `RabbitMQConfig.java` |
+| Spring AMQP / RabbitMQ | managed by Boot | Async event backbone | `messaging/**` (publisher, config, 11 `@RabbitListener` consumers + the shared `NotificationEventProcessor`) | `spring.rabbitmq.*`, `RabbitMQConfig.java` |
 | Spring Data Redis | managed by Boot | Cache layer for expensive reads | `cache/RedisCacheConfig.java`, `@Cacheable` in services | `spring.data.redis.*` |
 | Spring Cache abstraction | managed by Boot | `@Cacheable/@CacheEvict/@Caching` | Services + `cache/*.java` | `RedisCacheConfig.java` |
 | Springdoc OpenAPI (Swagger UI) | 2.8.6 | API docs at `/swagger-ui.html` | `config/OpenApiConfig.java` | `springdoc.*` in application.yml |
@@ -274,9 +274,9 @@ backend/src/main/java/com/devlaunch/
 │   ├── AccountSyncEventPublisher.java  # GitHub/LeetCode sync → gamification
 │   ├── MessagingLog.java         # structured logging helper
 │   ├── config/RabbitMQConfig.java      # topology + retry + DLQ
-│   ├── consumer/                 # 12 @RabbitListener consumers
+│   ├── consumer/                 # 11 @RabbitListener consumers + shared NotificationEventProcessor
 │   └── event/                    # event records (ActivityEvent, NotificationEvent, …)
-├── repository/                   # 28 Spring Data JPA repositories
+├── repository/                   # 27 Spring Data JPA repositories
 ├── security/
 │   ├── JwtService.java           # token generate/parse/validate
 │   ├── JwtAuthenticationFilter.java   # OncePerRequestFilter
@@ -338,9 +338,9 @@ frontend/src/
 ├── context/                      # AuthContext, ThemeContext, NotificationContext
 ├── hooks/                        # useAuth, useCountUp, useMediaRecorder, useResumeDownload, useWebcam
 ├── layouts/                      # AuthLayout, DashboardLayout
-├── pages/                        # 1 auth (4 pages) + 23 app/admin pages (see §22)
+├── pages/                        # 30 page files (4 auth, 8 admin, 18 feature/utility — see §22)
 ├── routes/index.tsx              # central route table
-├── services/                     # 15 typed API service modules
+├── services/                     # 14 typed API service modules
 ├── types/                        # per-module TypeScript interfaces
 └── utils/                        # date, error, format, interview, jwt, navigation, speaking, validation, …
 ```
@@ -395,7 +395,7 @@ Strict TypeScript: `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthro
 ## 4.6 `frontend/tailwind.config.ts` + `postcss.config.js`
 
 - Custom `primary` color palette (indigo shades 50–950), `Inter` font family
-- `index.css` adds component classes (`sidebar-link`, `card-lift`, `skeleton`) and ~25 custom keyframe animations (fade-in-up, confetti, badge glow, ripple, shimmer, …)
+- `index.css` adds component classes (`sidebar-link`, `card-lift`, `skeleton`) and ~15 custom keyframe animations (fade-in-up, confetti, badge glow, ripple, shimmer, …)
 
 ## 4.7 `frontend/src/constants/*` (effective config)
 
@@ -1207,7 +1207,7 @@ StudyPlannerServiceImpl.updateStudyPlanner(status → COMPLETED)
 ## 21.1 Overview (✅ fully implemented)
 
 - **Auth**: same JWT login; `SecurityConfig` restricts `/api/admin/**` to `hasRole("ADMIN")`.
-- **Default admin**: `DataInitializer.initDefaultAdmin()` seeds `admin@devlaunch.com` on first startup; the password is hard-coded in `DataInitializer` (printed to logs) — **change it after first login** (redacted here as `<PASSWORD>`).
+- **Default admin**: `DataInitializer.initDefaultAdmin()` seeds a default development admin account on first startup; the password is hard-coded in `DataInitializer` (printed to logs) — **change it after first login** (redacted here as `<PASSWORD>`).
 - Frontend gating: `AdminRoute` (redirects non-admin to dashboard) + admin nav items only for ADMIN (`utils/navigation.ts`).
 
 ## 21.2 API surface (all `GET/DELETE` under `/api/admin`, ROLE_ADMIN)
@@ -1251,8 +1251,8 @@ StudyPlannerServiceImpl.updateStudyPlanner(status → COMPLETED)
   - Admin (`AdminRoute` + `DashboardLayout`): 8 admin routes
   - `*` → `NotFoundPage`
 - **Auth state**: `AuthContext` — token in localStorage (`devlaunch_auth_token`); on load, if token exists → `GET /api/users/me` to validate/restore session; login stores token + fetches profile; logout clears. Registration **does not** auto-login (backend issues no JWT at register).
-- **API layer**: `api/client.ts` (Axios; request interceptor adds `Authorization: Bearer`; response interceptor on 401 clears token + redirects to login) + `api/endpoints.ts` (all URL constants) + 15 `services/*.ts` typed modules.
-- **UI design system** (`components/ui/`): `Button`, `Card`, `Input`, `Modal`, `Badge`, `Spinner`, `LoadingScreen`, `CountUp`, `EyeToggle`, `PasswordStrengthMeter`; Tailwind tokens + component classes (`sidebar-link`, `card-lift`, `skeleton`, …) + ~25 animations in `index.css`.
+- **API layer**: `api/client.ts` (Axios; request interceptor adds `Authorization: Bearer`; response interceptor on 401 clears token + redirects to login) + `api/endpoints.ts` (all URL constants) + 14 `services/*.ts` typed modules.
+- **UI design system** (`components/ui/`): `Button`, `Card`, `Input`, `Modal`, `Badge`, `Spinner`, `LoadingScreen`, `CountUp`, `EyeToggle`, `PasswordStrengthMeter`; Tailwind tokens + component classes (`sidebar-link`, `card-lift`, `skeleton`, …) + ~15 keyframe animations in `index.css`.
 - **Forms/validation**: react-hook-form + zod schemas + `utils/validation.ts` (mirrors backend constraints); `PasswordStrengthMeter` for auth.
 - **Error handling**: `ErrorMessage` component, react-hot-toast toasts, `utils/error.ts` (extract API message).
 - **Loading**: `LoadingScreen`, skeleton shimmer classes.
@@ -1351,7 +1351,7 @@ Cross-cutting layers:
 | CRUD ×6 | /api/resumes/{resumeId}/educations \| experiences \| projects \| skills \| certifications \| achievements | User | Section CRUD |
 | GET | /api/resume-templates (+ /{id}) | User | Template list/detail |
 
-## 24.5 Job applications (§10) — 20 endpoints, all User
+## 24.5 Job applications (§10) — 19 endpoints, all User
 
 See the table in §10.2 (base `/api/job-applications`).
 
@@ -1393,7 +1393,7 @@ See the table in §10.2 (base `/api/job-applications`).
 
 ## 24.12 Admin — all Admin (§21.2)
 
-~25 endpoints under `/api/admin/**`.
+22 endpoints under `/api/admin/**`.
 
 ## 24.13 Misc
 
@@ -1530,7 +1530,7 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 
 ## 29.2 Known weaknesses / suggested improvements (security review notes)
 
-1. **`JWT_SECRET` dev default is hard-coded** in `application.yml` (`ThisIsADevelopmentSecretKey…`) — must be set in production.
+1. **`JWT_SECRET` dev default is hard-coded** in `application.yml` (a development-only placeholder string) — must be set in production.
 2. **`SPRING_DATASOURCE_PASSWORD` defaults to `root`** and DB creds are plain env vars — consider a secret manager.
 3. **Default admin account** is seeded with a hard-coded password printed to logs (`DataInitializer`) — must be changed; consider forcing a change on first login.
 4. **No rate limiting / account lockout** on login or forgot-password.
@@ -1560,7 +1560,7 @@ Feedback         GET /api/admin/feedback (paged) → DELETE
 
 ## 30.2 Frontend tests
 
-- Only **one**: `src/utils/validation.test.ts` (validation helpers, Vitest).
+- **Two** unit test files (Vitest): `src/utils/validation.test.ts` (validation helpers) and `src/utils/error.test.ts` (error-message extraction).
 
 ## 30.3 Missing
 
@@ -1622,7 +1622,7 @@ controller/AuthController.java     → register/login/forgot/reset endpoints
 controller/AdminController.java    → all /api/admin/** endpoints
 controller/AiController.java       → resume-review, mock-interview, transcribe
 controller/DashboardController.java → GET /api/dashboard
-controller/JobApplicationController.java → full tracker API (20 endpoints)
+controller/JobApplicationController.java → full tracker API (19 endpoints)
 controller/UserController.java     → profile, change-password, github/leetcode connect
 service/impl/AuthServiceImpl.java  → register/login + password-reset logic (tokens, atomic consume)
 service/impl/DashboardServiceImpl.java → aggregate metrics + readiness formula + snapshots
@@ -1643,7 +1643,7 @@ service/ai/SampleMockInterviewProvider.java → heuristic evaluation
 service/ai/OpenAiWhisperTranscriber.java   → speech-to-text
 messaging/RabbitEventPublisher.java       → publish (never throws)
 messaging/config/RabbitMQConfig.java      → exchanges/queues/retry/DLQ
-messaging/consumer/*.java                 → 12 consumers
+messaging/consumer/*.java                 → 11 @RabbitListener consumers + shared NotificationEventProcessor
 cache/RedisCacheConfig.java               → cache manager, TTLs, JSON serializer
 cache/GracefulCacheErrorHandler.java      → degrade to DB on Redis failure
 exception/GlobalExceptionHandler.java     → consistent ErrorResponse
@@ -1669,10 +1669,10 @@ pages/job-applications/JobApplicationsPage.tsx → Kanban board
 pages/study-planner/StudyPlannerPage.tsx      → calendar + task list
 pages/achievements/AchievementsPage.tsx       → badge catalog + level card
 pages/admin/*.tsx           → 8 admin pages
-services/*.ts               → 15 typed API modules
+services/*.ts               → 14 typed API modules
 hooks/useMediaRecorder.ts   → voice recording for interviews
 utils/validation.ts         → zod + helper validators
-index.css                  → design tokens + ~25 animations
+index.css                  → design tokens + ~15 keyframe animations
 ```
 
 ---
@@ -1700,7 +1700,7 @@ index.css                  → design tokens + ~25 animations
 | Question bank | `entity/InterviewQuestion.java`, `service/impl/InterviewQuestionBankServiceImpl.java`, `data.sql` |
 | Error handling | `exception/GlobalExceptionHandler.java`, `exception/ErrorResponse.java`, `frontend/src/utils/error.ts` |
 | Frontend architecture | `frontend/src/routes/index.tsx`, `App.tsx`, `api/client.ts`, `context/*`, `components/ui/*`, `index.css` |
-| Tests | `backend/src/test/java/**`, `frontend/src/utils/validation.test.ts` |
+| Tests | `backend/src/test/java/**`, `frontend/src/utils/validation.test.ts`, `frontend/src/utils/error.test.ts` |
 | Original plan vs code | `docs/04_DATABASE.md`, `docs/02_REQUIREMENTS.md` vs §31 of this document |
 
 ---
@@ -1807,7 +1807,7 @@ index.css                  → design tokens + ~25 animations
 **RabbitMQ / Message Queue**
 - What: a broker that decouples producers from consumers via queues.
 - Why: emails/notifications/XP shouldn't block the main request.
-- How: services publish tiny events; 12 consumers handle side effects; retries + DLQ.
+- How: services publish tiny events; 11 `@RabbitListener` consumers (plus the shared `NotificationEventProcessor`) handle side effects; retries + DLQ.
 - Where: `messaging/**`.
 - Analogy: a post office — you drop a letter; the postman (consumer) delivers later, and the letter goes to the lost-and-found (DLQ) only if delivery keeps failing.
 
@@ -1867,7 +1867,7 @@ index.css                  → design tokens + ~25 animations
 12. **What is MapStruct used for?** DTO↔entity mapping (e.g. `AuthMapper`, `JobApplicationMapper`).
 13. **How are errors returned?** `GlobalExceptionHandler` (`@RestControllerAdvice`) → `ErrorResponse{timestamp,status,error,message,path}`.
 14. **What roles exist?** `STUDENT` and `ADMIN` (seeded by `DataInitializer`).
-15. **What is the admin seed account?** `admin@devlaunch.com` (password in `DataInitializer`, must be changed).
+15. **What is the admin seed account?** A default development admin account is seeded by `DataInitializer` (credentials defined there; must be changed after first login).
 16. **Name three enums.** `ApplicationStatus` (WISHLIST→REJECTED), `StudyStatus` (PENDING/IN_PROGRESS/COMPLETED), `NotificationType` (9 values).
 17. **What is Redis used for?** Caching expensive reads (dashboard 5 m, GitHub/LeetCode 30 m, …) with graceful fallback.
 18. **What is RabbitMQ used for?** Async side effects: password-reset emails, notifications, gamification (XP/badges).
@@ -1917,7 +1917,7 @@ index.css                  → design tokens + ~25 animations
 16. **How does the frontend store the JWT?** localStorage key `devlaunch_auth_token`, attached by the Axios request interceptor.
 17. **What happens on 401 in the frontend?** Response interceptor clears the token and redirects to `/auth/login`.
 18. **Which routes are public-only?** Login, register, forgot-password, reset-password (`PublicOnlyRoute`).
-19. **What is the default admin email?** `admin@devlaunch.com` (see §29 for the caveat).
+19. **Is there a default admin account?** Yes — `DataInitializer` seeds a default development admin account on first startup (credentials defined there; see §29 for the caveat).
 20. **What seed data runs on every startup?** `data.sql` — 500 questions + 17 achievements via idempotent `INSERT IGNORE`.
 
 ## 35.4 Architecture (20)
@@ -1947,9 +1947,9 @@ index.css                  → design tokens + ~25 animations
 
 # 36. FINAL PROJECT SUMMARY
 
-## Current completion (best estimate from code evidence)
+## Current completion (qualitative, from code evidence)
 
-- **~88%** of the planned modules are implemented; several features were added **beyond** the original plan (gamification, notifications, Redis, RabbitMQ, admin, readiness, ATS).
+The major core modules defined in the current project scope are implemented, with some planned enhancements remaining (auth, resume builder, job tracker, study planner, GitHub/LeetCode analytics, AI mock interview, dashboard, notifications, admin). Several features were also added **beyond** the original plan (AI resume review/ATS, gamification, placement readiness, Redis caching, RabbitMQ messaging). Items that remain unimplemented are listed explicitly as planned (refresh tokens, question-bank admin, global leaderboard, ESLint config, frontend component/E2E tests, rate limiting, postman collections).
 
 ## Completed modules (✅)
 
@@ -1989,7 +1989,7 @@ JWT stateless auth, BCrypt, role-based access, async messaging with retry/DLQ, c
 ## Strongest project features
 
 1. End-to-end event-driven notification + gamification pipeline (RabbitMQ → consumers → DB/cache)
-2. Graceful degradation everywhere (Redis down, RabbitMQ down, AI key missing, GitHub/LeetCode down — the app still works)
+2. Graceful degradation is implemented for several external dependencies, including Redis, AI providers, and GitHub/LeetCode integrations; RabbitMQ failure behavior follows the configured publisher/consumer handling
 3. Secure, production-aware password reset (entropy, expiry, single-use, enumeration-safe)
 4. AI integration with deterministic fallbacks (mock interviews + ATS resume review)
 5. Rich job tracker (timeline/interviews/notes/attachments/analytics + Kanban)
@@ -2001,7 +2001,7 @@ JWT stateless auth, BCrypt, role-based access, async messaging with retry/DLQ, c
 2. Implement refresh tokens + logout/revocation
 3. Add rate limiting and a custom `AuthenticationEntryPoint`
 4. Move secrets out of defaults (`JWT_SECRET`, DB password, default admin) into a secret manager; force admin password change
-5. Containerize the backend + frontend + MySQL in docker-compose with health checks
+5. Add health checks to the docker-compose services (the stack itself — backend, frontend, MySQL, Redis, RabbitMQ — is already fully containerized)
 6. Add the question-bank admin module and global leaderboard
 7. Extend test coverage: frontend component tests, E2E (Playwright/Cypress), API contract tests; add ESLint config
 8. Add OAuth (GitHub login) and persisted GitHub/LeetCode snapshots for offline dashboards

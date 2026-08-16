@@ -144,7 +144,7 @@ frontend/src/
 ├── layouts      # AuthLayout, DashboardLayout
 ├── pages        # auth, dashboard, module and admin pages
 ├── routes       # central route table with guards
-├── services     # 15 typed API service modules
+├── services     # 14 typed API service modules
 ├── types        # TypeScript interfaces
 ├── utils        # validation, date, format, jwt, interview, …
 ├── index.css    # Tailwind + design-system keyframes
@@ -292,7 +292,7 @@ These are handled using a global exception handler to return consistent API resp
 
 # 12. Logging Strategy
 
-Application logging will be implemented using Spring Boot logging.
+Application logging is implemented using Spring Boot's logging infrastructure (SLF4J/Logback), configured in `application.yml`: `logging.level` (root INFO, `com.devlaunch` DEBUG), a console pattern, and a rolling file at `logs/devlaunch-backend.log` (10 MB × 30). Services log via Lombok `@Slf4j`, and the messaging layer uses the `MessagingLog` helper for structured publish/retry/DLQ logging.
 
 Logs include:
 
@@ -301,7 +301,7 @@ Logs include:
 - Errors
 - Warnings
 
-Sensitive information such as passwords and tokens will never be logged.
+Sensitive information — passwords, tokens, and event payload contents such as password-reset tokens — is never logged (see `RabbitEventPublisher`/`MessagingLog`).
 
 ---
 

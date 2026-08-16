@@ -105,7 +105,7 @@ DevLaunch-AI/
 │       ├── layouts/                # AuthLayout, DashboardLayout
 │       ├── pages/                  # auth, dashboard, module and admin pages
 │       ├── routes/                 # central route table with guards
-│       ├── services/               # 15 typed API service modules
+│       ├── services/               # 14 typed API service modules
 │       ├── types/                  # TypeScript interfaces
 │       └── utils/                  # validation, date, format, jwt, …
 ├── docker/
@@ -149,7 +149,7 @@ cd backend
 ```
 
 - Swagger UI: http://localhost:8080/swagger-ui.html
-- On first startup `DataInitializer` seeds the `STUDENT` / `ADMIN` roles, four resume templates, and a default admin (`admin@devlaunch.com`, password defined in `DataInitializer` — change it after first login).
+- On first startup `DataInitializer` seeds the `STUDENT` / `ADMIN` roles, four resume templates, and a default development admin account (credentials defined in `DataInitializer` — change them after first login).
 - `data.sql` seeds the interview question bank (500 questions across 5 categories) and 17 achievement definitions on every startup (idempotent `INSERT IGNORE`).
 
 ### 3. Frontend
@@ -201,6 +201,12 @@ All backend configuration is overridable via environment variables (`${VAR:defau
 | Swagger UI | — | http://localhost:8080/swagger-ui.html |
 | RabbitMQ management | `docker compose up -d` (docker/) | http://localhost:15672 (guest/guest) |
 
+> **Frontend ports — dev vs Docker.** The frontend runs in two distinct modes that use different ports:
+> - **Development:** `npm run dev` serves the Vite dev server at **http://localhost:3000** (hot reload, `/api` proxied to `:8080`).
+> - **Docker:** the containerized production build is served by nginx on the container's port **80** and published on the host as **http://localhost:5173** (`5173:80` in `docker-compose.yml`).
+>
+> The two modes never share a port; the Vite dev server (`:3000`) is only used for local development.
+
 ---
 
 ## Docker
@@ -213,7 +219,7 @@ All backend configuration is overridable via environment variables (`${VAR:defau
 | `redis` | `redis:7-alpine` | `6379:6379` | cache |
 | `rabbitmq` | `rabbitmq:3-management` | `5672:5672`, `15672:15672` | broker + management UI |
 | `backend` | builds `backend/Dockerfile` | `8081:8080` | env vars wired to service names (`devlaunch-mysql`, `redis`, `rabbitmq`) |
-| `frontend` | builds `frontend/Dockerfile` | `5173:80` | nginx; proxies `/api` → `devlaunch-backend:8080` |
+| `frontend` | builds `frontend/Dockerfile` | `5173:80` | nginx serves the production build on container port 80, published on host port **5173** (http://localhost:5173); proxies `/api` → `devlaunch-backend:8080` |
 
 - **Backend Dockerfile:** multi-stage — Maven 3.9.9 / Temurin 21 build → `eclipse-temurin:21-jre` runtime, `EXPOSE 8080`.
 - **Frontend Dockerfile:** multi-stage — `node:20-alpine` build (`npm ci` → `npm run build`) → `nginx:alpine` serving `dist/` with `nginx.conf`, `EXPOSE 80`. Accepts a `VITE_API_URL` build argument that Vite bakes into the bundle (`import.meta.env.VITE_API_URL` in `src/api/client.ts`); empty by default (local/dev builds use the `/api` proxy).
@@ -302,6 +308,25 @@ Required GitHub configuration:
 - The Container Apps must already be configured with their runtime environment variables/secrets (`SPRING_DATASOURCE_*`, `REDIS_*`, `RABBITMQ_*`, `JWT_SECRET`, `FRONTEND_BASE_URL`, `AI_PROVIDER_API_KEY`, `MAIL_*`, `UPLOAD_DIR`, …). The CD workflow only swaps the image.
 
 See `docs/10_DEPLOYMENT.md` for the full CI/CD and Azure setup guide.
+
+---
+
+## Documentation Map
+
+| Document | Contents |
+|---|---|
+| `docs/01_PROJECT_CONTEXT.md` | Project context, vision, scope, domains, module overview |
+| `docs/02_REQUIREMENTS.md` | Software Requirements Specification (functional + non-functional) |
+| `docs/03_ARCHITECTURE.md` | Modular monolith architecture, layering, security, deployment architecture |
+| `docs/04_DATABASE.md` | Actual database schema: entities, relationships, constraints, seed data |
+| `docs/05_API_CONTRACT.md` | Complete REST endpoint inventory (methods, paths, auth, status codes) |
+| `docs/06_UI_FLOW.md` | Frontend routes, navigation, page flows, responsive design |
+| `docs/07_TASKS.md` | Implementation status: completed / partially implemented / future |
+| `docs/08_CODING_STANDARDS.md` | Coding standards derived from the actual codebase patterns |
+| `docs/09_TESTING.md` | Test suites, how to run them, coverage by area, gaps |
+| `docs/10_DEPLOYMENT.md` | CI/CD workflows, Azure OIDC, ACR, Container Apps, rollback |
+| `docs/11_PROMPTS.md` | Placeholder for development prompt curation (see note in file) |
+| `DEVLAUNCH_COMPLETE_TECHNICAL_DOCUMENTATION.md` | The full technical reference (architecture, modules, API, security, testing, code map) |
 
 ---
 
